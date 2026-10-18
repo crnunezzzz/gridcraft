@@ -1,6 +1,6 @@
 # Hardware parity
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-12 · **Change:** minor (direct desktop printing through craft-print) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-18 · **Change:** minor (direct desktop printing through craft-print) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
 
 The hardware Excel uses, per platform, against GridCraft. Part of
 [target-app-parity.md](target-app-parity.md). **Hardware: ~40% ready, 25–40 h** (estimated).
@@ -24,3 +24,7 @@ The hardware Excel uses, per platform, against GridCraft. Part of
 | 2026-10-11 | trivial | Windows: DirectX 12 shaders compiled with FXC, no DXC runtime needed (#339, #354) |
 | 2026-10-11 | trivial | Windows: OpenGL fallback when DirectX 12 has no GPU or fails to start; Vulkan never by default (#120) |
 | 2026-10-10 | major | Created: single-threaded calc, wgpu rendering, no pen pressure, single window |
+
+### 2026-10-18 — Android integration
+
+An initial ARM64 GameActivity host now reuses the engine and egui editor, with system font discovery under Android font directories. This adds build and platform integration, not a measured device-parity score. Touch, IME, mouse/keyboard, lifecycle and external-display validation remain open; see [Android](android.md).
