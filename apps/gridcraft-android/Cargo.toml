@@ -12,11 +12,16 @@ crate-type = ["cdylib", "rlib"]
 serde = { workspace = true }
 serde_json = { workspace = true }
 egui = { workspace = true }
+zeroize = { version = "1", features = ["derive"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 eframe = { workspace = true, features = ["wgpu", "android-game-activity", "default_fonts"] }
 android-activity = { version = "0.6.1", features = ["game-activity"] }
 jni = "0.22.4"
-zeroize = { version = "1", features = ["derive"] }
+gridcraft-engine = { workspace = true }
+gridcraft-ui-egui = { workspace = true }
+
+[dev-dependencies]
+egui_kittest = { workspace = true, features = ["wgpu", "snapshot"] }
 gridcraft-engine = { workspace = true }
 gridcraft-ui-egui = { workspace = true }

@@ -1524,6 +1524,7 @@ dependencies = [
  "android-activity",
  "eframe",
  "egui",
+ "egui_kittest",
  "gridcraft-engine",
  "gridcraft-ui-egui",
  "jni",
