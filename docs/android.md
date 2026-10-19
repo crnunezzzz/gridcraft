@@ -64,3 +64,4 @@ Las seis pruebas Rust de entrada/protocolo y las cuatro pruebas Java de InputCon
 El CI general pasa sus ocho pasos: formato, Clippy, tests, assets, capas, WASM, paridad y keytips.
 
 La publicación firmada puede ejecutarse con el workflow `Publish signed Android APK`: recibe un commit inmutable de la rama `android-apks` con la APK ya firmada y su SHA-256, verifica ambos y adjunta los archivos a una release existente. Esa rama contiene únicamente binarios públicos; las claves privadas de firma nunca se suben al repositorio.
+La publicación también se activa al subir la rama `android-apks`; en ese caso verifica el mismo commit recibido y publica android.4.
