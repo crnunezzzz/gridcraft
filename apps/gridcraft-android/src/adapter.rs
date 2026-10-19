@@ -32,6 +32,7 @@ impl Editor {
         let print = platform.clone();
         let print_path = dir.join("print.pdf");
         let services = Services {
+            host_toolbar: Some(Default::default()),
             paste_html: Some(Box::new(move || html_clipboard.clipboard("html"))),
             copy_html: Some(Box::new(move |html, text| copy_clipboard.copy_html(html, text))),
             open_url: Some(Box::new(move |url| {
@@ -82,6 +83,16 @@ impl Editor {
     }
     pub fn ui(&mut self, ui: &mut Ui) {
         self.app.ui(ui);
+    }
+    pub fn host_state(&mut self, open: bool, busy: bool, status: &str) {
+        if let Some(host) = &mut self.app.services.host_toolbar {
+            host.assistant_open = open;
+            host.busy = busy;
+            host.status = status.into();
+        }
+    }
+    pub fn host_action(&mut self) -> Option<&'static str> {
+        self.app.services.host_toolbar.as_mut()?.action.take()
     }
     pub fn run(&mut self, id: &str, params: Value) -> Result<Value, String> {
         self.app.run(id, params)

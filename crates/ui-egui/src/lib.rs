@@ -18,6 +18,7 @@ pub mod fonts;
 pub mod formula_bar;
 mod formula_locale;
 pub mod grid;
+pub mod host_toolbar;
 pub mod i18n;
 pub mod icons;
 pub mod keymap;
@@ -164,6 +165,8 @@ pub struct Notice {
 /// Host services the platform shell provides (file pickers, opening URLs).
 #[derive(Default)]
 pub struct Services {
+    /// Optional platform commands in the editor command bar.
+    pub host_toolbar: Option<host_toolbar::HostToolbar>,
     /// Desktop: discover configured printers on a worker.
     pub printers: Option<printing::Discover>,
     /// Desktop: submit the PDF with the chosen settings on a worker.

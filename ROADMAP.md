@@ -1,5 +1,7 @@
 # GridCraft roadmap
 
+> Android update · 2026-10-18: Android.4 adds explicit IME/hardware-key input, the original launcher icon, and a native Asistente tab with in-panel API settings. Device validation remains pending; see [Android notes](docs/android.md).
+
 **Stage: alpha** · next: beta, ~25 points of "ready for real work" and ~160–240 h away
 
 > **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-18 · **Change:** minor (rows auto-fit oversized fonts on open and whole-row/column formatting) · **Target:** Microsoft Excel (Microsoft 365)

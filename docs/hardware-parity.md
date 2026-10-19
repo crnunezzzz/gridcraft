@@ -1,5 +1,7 @@
 # Hardware parity
 
+> Android update · 2026-10-18: Android.4 adds explicit IME/hardware-key input, the original launcher icon, and a native Asistente tab with in-panel API settings. Device validation remains pending; see [Android notes](android.md).
+
 > **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-18 · **Change:** minor (direct desktop printing through craft-print) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
 
 The hardware Excel uses, per platform, against GridCraft. Part of

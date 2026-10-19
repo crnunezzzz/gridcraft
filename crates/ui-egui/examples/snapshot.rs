@@ -17,6 +17,7 @@ fn main() {
     let mut cmds: Vec<String> = vec![];
     let mut tab = None;
     let mut dark = false;
+    let mut android = false;
     let mut pane: Option<String> = None;
     let mut chart: Option<u32> = None;
     let mut dialog: Option<String> = None;
@@ -26,6 +27,7 @@ fn main() {
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
+            "--android" => android = true,
             "--sample" => {
                 i += 1;
                 sample = args.get(i).cloned();
@@ -101,7 +103,8 @@ fn main() {
                 app.ui(ui);
             },
             {
-                let mut app = SheetApp::new(session, Default::default());
+                let services = gridcraft_ui_egui::Services { host_toolbar: android.then(Default::default), ..Default::default() };
+                let mut app = SheetApp::new(session, services);
                 app.ui.dark = dark;
                 if let Some(code) = &language
                     && let Some(l) = gridcraft_ui_egui::i18n::Language::parse(code)

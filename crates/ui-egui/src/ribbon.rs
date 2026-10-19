@@ -179,14 +179,22 @@ pub fn show(app: &mut SheetApp, ui: &mut Ui) {
                     file_menu(app, ui);
                     let mut tabs: Vec<&str> = TABS.to_vec();
                     let ctx_tabs = contextual_tabs(app);
+                    if app.services.host_toolbar.is_some() {
+                        tabs.extend(["Ayuda", "Asistente"]);
+                    }
                     tabs.extend(ctx_tabs.iter());
                     for tab in tabs {
-                        let active = app.ui.ribbon_tab == tab;
+                        let active = if tab == "Asistente" {
+                            app.services.host_toolbar.as_ref().is_some_and(|h| h.assistant_open)
+                        } else {
+                            app.ui.ribbon_tab == tab
+                        };
                         let contextual = ctx_tabs.contains(&tab);
                         let font = theme::ui_font(13.5);
                         let label = app.ui.language.tr(tab);
                         let tw = ui.painter().layout_no_wrap(label.to_string(), font.clone(), t.text).size().x;
                         let (r, resp) = ui.allocate_exact_size(vec2(tw + 22.0, 30.0), Sense::click());
+                        resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, active, label));
                         if resp.hovered() && !active {
                             ui.painter().rect_filled(r.shrink2(vec2(2.0, 4.0)), 5.0, t.hover);
                         }
@@ -203,7 +211,13 @@ pub fn show(app: &mut SheetApp, ui: &mut Ui) {
                             ui.painter().rect_filled(ul, 1.5, t.accent);
                         }
                         if resp.clicked() {
-                            if active && !collapsed {
+                            if tab == "Asistente" {
+                                if let Some(host) = &mut app.services.host_toolbar {
+                                    host.action = Some("assistant");
+                                }
+                            } else if tab == "Ayuda" {
+                                app.open_dialog("about", json!({}));
+                            } else if active && !collapsed {
                                 app.ui.ribbon_collapsed = true;
                             } else {
                                 app.ui.ribbon_tab = tab.to_string();

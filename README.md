@@ -1,3 +1,5 @@
+> **Android para tablets:** [Descargar GridCraft APK](https://github.com/crnunezzzz/gridcraft/releases/latest/download/GridCraft-Android-arm64.apk) · [Instalación y uso](docs/android.md). Para pasar de android.3 a android.4, exporta tus documentos antes de desinstalar la versión anterior.
+
 <p align="center">
   <a href="https://getartcraft.com/">
     <picture>
