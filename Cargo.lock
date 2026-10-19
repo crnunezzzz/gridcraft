@@ -1527,10 +1527,13 @@ dependencies = [
  "egui_kittest",
  "gridcraft-engine",
  "gridcraft-ui-egui",
+ "image",
  "jni",
+ "quick-xml",
  "serde",
  "serde_json",
  "zeroize",
+ "zip",
 ]
 
 [[package]]

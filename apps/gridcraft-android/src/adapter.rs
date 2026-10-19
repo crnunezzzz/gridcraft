@@ -93,6 +93,13 @@ impl Editor {
             host.status = status.into();
         }
     }
+    /// The interface size as a zoom over the system's display scale (1.0: as Android draws it).
+    pub fn interface_scale(&self, _native: f32) -> f32 {
+        self.app.ui.zoom_factor()
+    }
+    pub fn set_interface_scale(&mut self, _native: f32, scale: f32) {
+        self.app.ui.interface_scale = gridcraft_ui_egui::clamp_interface_scale(f64::from(scale) * 100.0).unwrap_or(100);
+    }
     pub fn host_action(&mut self) -> Option<&'static str> {
         self.app.services.host_toolbar.as_mut()?.action.take()
     }
