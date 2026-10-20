@@ -10,6 +10,7 @@
 
 #[cfg(target_os = "macos")]
 mod apple_events;
+mod assistant_host;
 mod control_server;
 #[cfg(any(target_os = "windows", test))]
 mod graphics;
@@ -25,20 +26,27 @@ use gridcraft_engine::Session;
 use gridcraft_ui_egui::{Services, SheetApp};
 use serde_json::json;
 
-struct App(SheetApp, #[cfg(target_os = "macos")] Option<native_menu::NativeMenu>, #[cfg(target_os = "macos")] fmv_macos_events::Inbox);
+/// The editor, its AI assistant panel and, on macOS, the native menu and the Finder's documents.
+struct App(
+    SheetApp,
+    assistant_host::AssistantHost,
+    #[cfg(target_os = "macos")] Option<native_menu::NativeMenu>,
+    #[cfg(target_os = "macos")] fmv_macos_events::Inbox,
+);
 
 impl eframe::App for App {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         #[cfg(target_os = "macos")]
         {
-            if self.1.is_none() && std::env::var_os("GRIDCRAFT_NO_NATIVE_MENU").is_none() {
-                self.1 = Some(native_menu::NativeMenu::install(ctx));
+            if self.2.is_none() && std::env::var_os("GRIDCRAFT_NO_NATIVE_MENU").is_none() {
+                self.2 = Some(native_menu::NativeMenu::install(ctx));
             }
-            if let Some(m) = &self.1 {
+            if let Some(m) = &self.2 {
                 m.poll(&mut self.0, ctx);
             }
-            apple_events::poll(&self.2, &mut self.0, ctx);
+            apple_events::poll(&self.3, &mut self.0, ctx);
         }
+        self.1.frame(ctx, &mut self.0);
         self.0.logic(ctx);
         self.0.poll_printing(ctx);
         if ctx.input(|input| input.viewport().close_requested()) && self.0.printing.busy() {
@@ -55,9 +63,12 @@ impl eframe::App for App {
         }
     }
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.1.panel(ui, &mut self.0);
         self.0.ui(ui);
+        self.1.finish(ui.ctx(), &mut self.0);
     }
     fn on_exit(&mut self) {
+        self.1.on_exit();
         print::finish_pending_jobs();
         save_prefs(&self.0);
         // macOS (#117): end the process here, before eframe tears the window down. AccessKit's
@@ -195,6 +206,8 @@ fn services() -> Services {
         open_url: Some(Box::new(|url: &str| open_with_system(url))),
         printers: Some(print::discover()),
         print_native: Some(print::submit()),
+        // The ribbon's Asistente tab (`assistant_host`).
+        host_toolbar: Some(Default::default()),
         ..Default::default()
     }
 }
@@ -230,6 +243,10 @@ fn icon() -> Option<egui::IconData> {
 }
 
 fn main() -> eframe::Result<()> {
+    // Started by Codex or Claude Code as the assistant's tool server: no window, no log file.
+    if gridcraft_assistant::desktop::maybe_serve_mcp() {
+        return Ok(());
+    }
     // First, so the panic hook and every start-up warning are recorded (`logging`).
     let logger = logging::install();
     // Commands catch their panics (`Session::execute`), but the default hook only prints to
@@ -359,6 +376,7 @@ fn main() -> eframe::Result<()> {
                 }
                 Ok(Box::new(App(
                     app,
+                    assistant_host::AssistantHost::new(config_dir()),
                     #[cfg(target_os = "macos")]
                     None,
                     #[cfg(target_os = "macos")]

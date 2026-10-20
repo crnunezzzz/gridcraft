@@ -18,6 +18,8 @@ pub struct Editor {
 }
 impl Editor {
     pub const NAME: &'static str = "GridCraft";
+    /// The editor has no momentum of its own: the host coasts after a flick.
+    pub const OWN_MOMENTUM: bool = false;
     pub fn new(dir: &Path, platform: Platform, _ctx: &Context) -> Self {
         let open = platform.clone();
         let save = platform.clone();
@@ -91,6 +93,13 @@ impl Editor {
             host.status = status.into();
         }
     }
+    /// The interface size as a zoom over the system's display scale (1.0: as Android draws it).
+    pub fn interface_scale(&self, _native: f32) -> f32 {
+        self.app.ui.zoom_factor()
+    }
+    pub fn set_interface_scale(&mut self, _native: f32, scale: f32) {
+        self.app.ui.interface_scale = gridcraft_ui_egui::clamp_interface_scale(f64::from(scale) * 100.0).unwrap_or(100);
+    }
     pub fn host_action(&mut self) -> Option<&'static str> {
         self.app.services.host_toolbar.as_mut()?.action.take()
     }
@@ -117,9 +126,6 @@ impl Editor {
     }
     pub fn context(&mut self) -> Value {
         self.app.session.run("document.inspect", json!({})).unwrap_or_else(|e| json!({"error":e}))
-    }
-    pub fn stamp(&self) -> String {
-        self.app.session.active().map(|d| format!("{}:{}:{:?}", d.uid, d.revision, d.selection)).unwrap_or_default()
     }
     pub fn file_event(&mut self, event: &Value) {
         let ticket = event["ticket"].as_u64().unwrap_or(0);

@@ -1,6 +1,6 @@
 # GridCraft roadmap
 
-> Android update · 2026-10-18: Android.4 adds explicit IME/hardware-key input, the original launcher icon, and a native Asistente tab with in-panel API settings. Device validation remains pending; see [Android notes](docs/android.md).
+> Android update · 2026-10-19: Android.6 fixes the system bars covering the app, recognises touch, mouse, stylus and touchpad gestures natively (scrolling, no accidental zoom), and rebuilds the assistant after PDF Scholar's with OpenAI (Responses API) and Anthropic only. Device validation remains pending; see [Android notes](docs/android.md).
 
 **Stage: alpha** · next: beta, ~25 points of "ready for real work" and ~160–240 h away
 
@@ -219,6 +219,10 @@ Ranked; estimates in Opus 5.5 agent-hours. Detail and the full beta-gate list in
 | 2026-10-10 | minor | Checked against the alpha gate (six core workflows pass): stays alpha |
 | 2026-10-10 | major | Re-measured against Excel for Mac 16.113.4: stage alpha, breadth ~75%, ready ~50%, ~160–240 h to beta, ~700–1,100 h to full parity; restructured to the progress-docs standard; detail moved to `docs/` |
 | 2026-10-07 | major | First estimates: catalog 89%, functions ~93%, depth ~65%, ~35 h to alpha, ~215 h to full parity |
+
+### 2026-10-19 — Android.6: native window, gestures and assistant
+
+Edge-to-edge window with system-bar, cutout and keyboard insets; Back no longer finishes the activity; pointer input recognised in the host (finger pan with momentum, tap, long press, pinch; mouse, stylus and touchpad as precise pointers), which removes the accidental multi-touch zoom; assistant panel redesigned after PDF Scholar's, OpenAI Responses and Anthropic Messages with native append-only histories and the current model lineup. Details and validation: [docs/android.md](docs/android.md).
 
 ### 2026-10-18 — Android host (initial integration)
 
