@@ -13,6 +13,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 egui = { workspace = true }
 zeroize = { version = "1", features = ["derive"] }
+gridcraft-assistant = { workspace = true }
 image = { workspace = true }
 quick-xml = { workspace = true }
 zip = { workspace = true }
@@ -21,10 +22,5 @@ zip = { workspace = true }
 eframe = { workspace = true, features = ["wgpu", "android-game-activity", "default_fonts"] }
 android-activity = { version = "0.6.1", features = ["game-activity"] }
 jni = "0.22.4"
-gridcraft-engine = { workspace = true }
-gridcraft-ui-egui = { workspace = true }
-
-[dev-dependencies]
-egui_kittest = { workspace = true, features = ["wgpu", "snapshot"] }
 gridcraft-engine = { workspace = true }
 gridcraft-ui-egui = { workspace = true }

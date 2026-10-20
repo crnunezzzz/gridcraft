@@ -13,6 +13,8 @@ workspace = true
 [dependencies]
 gridcraft-engine = { workspace = true }
 gridcraft-ui-egui = { workspace = true }
+# The AI assistant panel (API keys or the user's ChatGPT / Claude plan).
+gridcraft-assistant = { workspace = true }
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11"] }
 egui = { workspace = true }
 serde_json = { workspace = true }

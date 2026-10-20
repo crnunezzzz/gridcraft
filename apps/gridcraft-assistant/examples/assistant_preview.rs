@@ -2,9 +2,9 @@
 //! design can be checked without a tablet: closed (floating button), empty, a conversation,
 //! an error, the settings, attached files, and a narrow phone-sized window.
 //!
-//! `cargo run -p gridcraft-android --example assistant_preview -- /abs/out/dir`
-use gridcraft_android::assistant::{Assistant, Busy, Chip, Entry, Step, View};
-use gridcraft_android::attach;
+//! `cargo run -p gridcraft-assistant --example assistant_preview -- /abs/out/dir`
+use gridcraft_assistant::assistant::{Assistant, Busy, Chip, Entry, Step, View};
+use gridcraft_assistant::attach;
 use gridcraft_engine::Session;
 use gridcraft_ui_egui::{Services, SheetApp};
 
@@ -92,7 +92,7 @@ fn main() {
                 }
                 s.app.logic(&ctx);
                 if s.assistant.open {
-                    s.assistant.panel(ui, &gridcraft_android::BRANDING);
+                    s.assistant.panel(ui, &gridcraft_assistant::BRANDING);
                 }
                 s.app.ui(ui);
                 s.assistant.launcher(&ctx);
