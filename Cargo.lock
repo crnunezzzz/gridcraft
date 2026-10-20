@@ -1582,6 +1582,7 @@ dependencies = [
  "gridcraft-ui-egui",
  "image",
  "keyring",
+ "open",
  "pollster 0.4.0",
  "quick-xml",
  "rfd",
