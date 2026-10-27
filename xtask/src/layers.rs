@@ -43,6 +43,7 @@ pub const TABLE: &[(&str, Class)] = &[
     ("cli", Class::Layer(7)),
     ("web", Class::Layer(7)),
     ("android", Class::Layer(7)),
+    ("assistant", Class::Layer(7)),
     ("xtask", Class::Exempt),
 ];
 
