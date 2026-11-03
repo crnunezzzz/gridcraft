@@ -416,8 +416,10 @@ jobs:
   publish:
     name: Publish the release
     needs: [windows, linux, android]
-    # Ubuntu and Android come first: a failed Windows build does not hold their release back.
-    if: always() && (needs.linux.result == 'success' || needs.windows.result == 'success')
+    # A release carries every desktop build: if Windows or Linux fails, nothing is published
+    # (the run is red, and the apps keep the last release). Android joins when its signing
+    # secrets are set; the watchdog warns when a release lacks the APK.
+    if: always() && needs.windows.result == 'success' && needs.linux.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
