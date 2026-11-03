@@ -80,8 +80,8 @@ impl Editor {
     pub fn logic(&mut self, ctx: &Context) {
         self.app.logic(ctx);
     }
-    pub fn raw_input(&mut self, raw: &mut egui::RawInput) {
-        self.app.raw_input_hook(raw);
+    pub fn raw_input(&mut self, ctx: &Context, raw: &mut egui::RawInput) {
+        self.app.raw_input_hook(ctx, raw);
     }
     pub fn ui(&mut self, ui: &mut Ui) {
         self.app.ui(ui);

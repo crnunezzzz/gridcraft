@@ -20,7 +20,7 @@ use crate::{
     assistant::{Action, Assistant, Branding, Busy, COMPOSER_ID, Chip, Entry, Host, Installing, PlanInfo, Settings, Step, View, plan_index},
     attach::{self, Attachment},
     protocol::{self, Degrade, Provider, Thread},
-    update::{self, Release},
+    update,
 };
 use egui::Context;
 use serde_json::Value;
@@ -48,6 +48,8 @@ fn now() -> Instant {
 }
 
 type Prepared = Result<Attachment, String>;
+/// A worker's replies: the sending end it is given and the end the UI drains.
+type Channel<T> = (Sender<T>, Receiver<T>);
 
 /// One user message on the API path: model rounds and tool calls until the model answers.
 struct ApiRun {
@@ -87,11 +89,11 @@ pub struct Desktop {
     last_plan: Option<PlanMessage>,
     bridge: Option<bridge::Bridge>,
     next_ticket: u64,
-    replies: (Sender<(u64, Value)>, Receiver<(u64, Value)>),
-    prepared: (Sender<Prepared>, Receiver<Prepared>),
-    checks: (Sender<(Provider, PlanInfo)>, Receiver<(Provider, PlanInfo)>),
-    updates: (Sender<Result<Option<Release>, String>>, Receiver<Result<Option<Release>, String>>),
-    installs: (Sender<install::Msg>, Receiver<install::Msg>),
+    replies: Channel<(u64, Value)>,
+    prepared: Channel<Prepared>,
+    checks: Channel<(Provider, PlanInfo)>,
+    updates: Channel<Result<update::Checked, String>>,
+    installs: Channel<install::Msg>,
     /// The system's display scale (native pixels per point).
     native: f32,
     was_settings: bool,
@@ -212,13 +214,19 @@ impl Desktop {
         self.assistant.view = View::Settings;
     }
 
+    /// Help › Check for Updates: this fork's releases.
+    pub fn check_now(&mut self) {
+        self.assistant.request_update_check();
+    }
+
     pub fn busy(&self) -> bool {
         self.run.is_some() || self.plan.is_some()
     }
 
     /// A text field of the panel has the keyboard: the editor must not take its keys.
     pub fn typing(&self, ctx: &Context) -> bool {
-        self.assistant.open && ctx.memory(|m| m.focused()).is_some_and(|id| id == egui::Id::new(COMPOSER_ID) || self.assistant.view == View::Settings)
+        self.assistant.open
+            && ctx.memory(|m| m.focused()).is_some_and(|id| id == egui::Id::unique(COMPOSER_ID) || self.assistant.view == View::Settings)
     }
 
     /// Check a plan tool off the UI thread; with `watch`, again every few seconds until it is
@@ -248,7 +256,7 @@ impl Desktop {
         self.save_settings();
         let tx = self.updates.0.clone();
         let spawned = std::thread::Builder::new().name("craft-update-check".into()).spawn(move || {
-            let result = http::releases(&url).map(|reply| update::latest(&reply, update::repo(crate::RELEASES), target, update::build()));
+            let result = http::releases(&url).map(|reply| update::check(&reply, update::repo(crate::RELEASES), target, update::build(), unix_now()));
             let _ = tx.send(result);
         });
         if spawned.is_err() {

@@ -147,7 +147,7 @@ impl Mobile {
 
     fn update_reply(&mut self, event: &Value) {
         let result = match event["status"].as_u64() {
-            Some(200) => Ok(update::latest(&event["body"], update::repo(crate::RELEASES), update::Target::Android, update::build())),
+            Some(200) => Ok(update::check(&event["body"], update::repo(crate::RELEASES), update::Target::Android, update::build(), unix_now())),
             Some(status) => Err(update::failure(u16::try_from(status).ok())),
             None => Err(update::failure(None)),
         };
@@ -634,7 +634,8 @@ impl Mobile {
 
     /// A text field of the assistant has the keyboard: keep its keys from the editor.
     fn typing_in_panel(&self, ctx: &Context) -> bool {
-        self.assistant.open && ctx.memory(|m| m.focused()).is_some_and(|id| id == egui::Id::new(COMPOSER_ID) || self.assistant.view == View::Settings)
+        self.assistant.open
+            && ctx.memory(|m| m.focused()).is_some_and(|id| id == egui::Id::unique(COMPOSER_ID) || self.assistant.view == View::Settings)
     }
 }
 
@@ -687,7 +688,7 @@ impl eframe::App for Mobile {
             raw.events.push(egui::Event::Paste(text.into()));
         }
         if !self.typing_in_panel(ctx) {
-            self.editor.raw_input(raw);
+            self.editor.raw_input(ctx, raw);
         }
     }
 
@@ -710,6 +711,7 @@ impl eframe::App for Mobile {
                 self.assistant.open = true;
                 self.assistant.view = View::Settings;
             }
+            Some("check_update") => self.assistant.request_update_check(),
             Some("export") => self.status = self.editor.export(&self.platform).err().unwrap_or_else(|| "Elige dónde guardar la copia".into()),
             _ => {}
         }
@@ -731,8 +733,8 @@ impl eframe::App for Mobile {
         for url in links {
             let _ = self.platform.exchange(json!({"op":"open_url","url":url}));
         }
-        let ime = ui.ctx().output(|out| out.ime);
-        let focus = ime.map(|ime| (ui.ctx().memory(|m| m.focused()), ime.purpose == egui::IMEPurpose::Password));
+        let ime = ui.ctx().output(|out| out.ime.clone());
+        let focus = ime.as_ref().map(|ime| (ui.ctx().memory(|m| m.focused()), ime.purpose == egui::IMEPurpose::Password));
         if focus != self.input_focus || ime.is_some_and(|ime| ime.should_interrupt_composition) {
             self.input.reset_composition();
             let _ = self.platform.exchange(json!({"op":"input_context", "password":focus.is_some_and(|(_, password)| password)}));
