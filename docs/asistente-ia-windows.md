@@ -59,12 +59,34 @@ los sobrescribiría. Por eso GridCraft IA:
    [`ia-windows.yml`](../.github/workflows/ia-windows.yml). Cada día fusiona
    `storytold/gridcraft` en `main`, prueba el asistente sobre el código fusionado y publica una
    versión nueva en *Releases*: el zip de Windows, el zip de Linux y la APK firmada de Android
-   en la misma versión. Si el proyecto original cambia las mismas líneas que este fork,
-   no se publica nada: el workflow abre un issue y la última versión sigue disponible.
+   en la misma versión. La fusión ([`sync-upstream.sh`](../.github/ia/sync-upstream.sh))
+   resuelve sola los choques que se repiten en cada fusión (`Cargo.lock`, los documentos del
+   original, `ATTRIBUTION.md`, `README.md`). Si el proyecto original cambia las mismas líneas de
+   **código** que este fork, Claude los resuelve (si existe el secreto `CLAUDE_CODE_OAUTH_TOKEN`)
+   y su arreglo solo se sube si pasan las mismas pruebas. Nada que falle llega a `main`, y la
+   última versión sigue disponible.
 3. **Toca lo mínimo del código original**, para que esas fusiones casi nunca choquen:
    - todo el asistente vive en `apps/gridcraft-assistant` (compartido con Android);
-   - la app de escritorio solo añade `apps/gridcraft/src/assistant_host.rs` y unas pocas líneas
-     en `main.rs`.
+   - la app de escritorio solo añade `apps/gridcraft/src/assistant_host.rs` y cuatro llamadas
+     en `main.rs`, y la cinta unas pocas líneas.
+4. **No instala las actualizaciones del original.** GridCraft trae su propio actualizador, que
+   instalaría el GridCraft oficial encima (sin asistente). En GridCraft IA esa comprobación al
+   abrir está apagada, y Ayuda › Buscar actualizaciones abre la del asistente, que mira las
+   versiones de este fork.
+
+### Si la sincronización se detiene, se nota
+
+Una sincronización atascada nunca queda en silencio:
+
+- **En la app:** si la versión más reciente con el archivo de tu plataforma (zip de Linux o de
+  Windows, APK de Android) tiene más de 7 días, aparece «Las actualizaciones se detuvieron» con
+  la fecha y dónde mirar. También queda escrito en asistente › engranaje › Actualizaciones.
+  Funciona aunque GitHub no avise de nada.
+- **En GitHub:** la ejecución termina en rojo (GitHub manda un correo cuando falla un workflow
+  programado), el resumen de la ejecución explica qué pasó y qué hacer, y se abre un issue si
+  el repositorio tiene los issues activados (*Settings › General › Features › Issues*).
+- **El vigilante:** cada día, el paso «Watchdog» del workflow falla si la versión más reciente
+  tiene más de 3 días, y avisa si le falta la APK o el zip de Linux.
 
 ### Aviso de versión nueva
 
@@ -100,9 +122,11 @@ versión publicada. El código está en `apps/gridcraft-assistant/src/update.rs`
 ### Ajustes del repositorio
 
 - El workflow necesita que `main` contenga este trabajo: fusiona el pull request.
-- Recomendado: crea el secreto **SYNC_TOKEN**, un token personal con los permisos `repo` y
+- Necesario: crea el secreto **SYNC_TOKEN**, un token personal con los permisos `repo` y
   `workflow`. Sin él, GitHub impide que el workflow suba una fusión en la que el proyecto
-  original cambió sus propios workflows. En ese caso se abre un issue avisándolo.
+  original cambió sus propios workflows (lo hace a menudo), y la ejecución termina en rojo.
+- Opcional: el secreto **CLAUDE_CODE_OAUTH_TOKEN** (en una terminal con Claude Code:
+  `claude setup-token`) deja que Claude resuelva los choques de código. Usa tu plan de Claude.
 - Para la APK de Android: crea los secretos **ANDROID_KEYSTORE_BASE64** (el archivo
   `craft-release.p12` en base64) y **ANDROID_KEYSTORE_PASSWORD** (su contraseña). Tiene que ser la
   misma clave con la que se firmaron las APK que ya tienes instaladas; si no, Android no deja
