@@ -688,7 +688,7 @@ impl eframe::App for Mobile {
             raw.events.push(egui::Event::Paste(text.into()));
         }
         if !self.typing_in_panel(ctx) {
-            self.editor.raw_input(raw);
+            self.editor.raw_input(ctx, raw);
         }
     }
 
@@ -733,8 +733,8 @@ impl eframe::App for Mobile {
         for url in links {
             let _ = self.platform.exchange(json!({"op":"open_url","url":url}));
         }
-        let ime = ui.ctx().output(|out| out.ime);
-        let focus = ime.map(|ime| (ui.ctx().memory(|m| m.focused()), ime.purpose == egui::IMEPurpose::Password));
+        let ime = ui.ctx().output(|out| out.ime.clone());
+        let focus = ime.as_ref().map(|ime| (ui.ctx().memory(|m| m.focused()), ime.purpose == egui::IMEPurpose::Password));
         if focus != self.input_focus || ime.is_some_and(|ime| ime.should_interrupt_composition) {
             self.input.reset_composition();
             let _ = self.platform.exchange(json!({"op":"input_context", "password":focus.is_some_and(|(_, password)| password)}));

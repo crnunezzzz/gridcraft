@@ -230,6 +230,8 @@ jobs:
           echo "La versión IA más reciente es del $newest (hace $age días)."
           # Each platform's own file in the newest build: a release without the APK leaves the
           # tablets behind even while Linux and Windows keep updating.
+          # $n is jq's variable, not the shell's (SC2016).
+          # shellcheck disable=SC2016
           missing=$(gh api "repos/$GH_REPO/releases?per_page=30" --jq '[.[] | select(.draft == false and (.tag_name | startswith("ia-v")))] | max_by(.published_at) | [.assets[].name] as $n | [(if any($n[]; endswith("-linux-x64.zip")) then empty else "Linux (zip -linux-x64)" end), (if any($n[]; endswith(".apk")) then empty else "Android (APK)" end)] | join(", ")')
           if [ -n "$missing" ]; then
             echo "::warning title=Falta una plataforma::La versión más reciente no trae: $missing. Revisa su compilación en este workflow (y, para Android, los secretos de firma)."
