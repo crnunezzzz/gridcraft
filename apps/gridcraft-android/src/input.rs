@@ -6,7 +6,7 @@
 //! finger drag as text selection. A finger pans and flicks the view, a tap clicks, a long press
 //! opens the context menu and a long press then drag selects; two fingers pinch-zoom and pan.
 //! Mouse, stylus and touchpad stay precise pointers with hover, buttons and wheel.
-use egui::{Event, ImeEvent, Key, Modifiers, MouseWheelUnit, PointerButton, Pos2, RawInput, TouchPhase, Vec2, pos2, vec2};
+use egui::{Event, ImeEvent, Key, Modifiers, MouseWheelSource, MouseWheelUnit, PointerButton, Pos2, RawInput, TouchPhase, Vec2, pos2, vec2};
 use serde_json::Value;
 
 /// Movement (points) before a finger press becomes a pan or a drag.
@@ -121,7 +121,8 @@ impl Default for AndroidInput {
 }
 
 fn wheel(delta: Vec2, phase: TouchPhase, modifiers: Modifiers) -> Event {
-    Event::MouseWheel { unit: MouseWheelUnit::Point, delta, phase, modifiers }
+    // Finger pans and their flings scroll like a trackpad: egui keeps their phases together.
+    Event::MouseWheel { unit: MouseWheelUnit::Point, delta, phase, modifiers, source: MouseWheelSource::Trackpad }
 }
 
 fn pointers(event: &Value, ppp: f32) -> Vec<(i64, Pos2)> {
@@ -455,7 +456,13 @@ impl AndroidInput {
                 if v.is_finite() && h.is_finite() && (v != 0.0 || h != 0.0) {
                     raw.events.push(Event::PointerMoved(pos));
                     // Android: +v is the wheel turned away (content down), +h scrolls right.
-                    raw.events.push(Event::MouseWheel { unit: MouseWheelUnit::Line, delta: vec2(-h, v), phase: TouchPhase::Move, modifiers });
+                    raw.events.push(Event::MouseWheel {
+                        unit: MouseWheelUnit::Line,
+                        delta: vec2(-h, v),
+                        phase: TouchPhase::Move,
+                        modifiers,
+                        source: MouseWheelSource::Wheel,
+                    });
                 }
             }
             _ => {}

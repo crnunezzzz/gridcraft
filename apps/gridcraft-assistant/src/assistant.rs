@@ -213,6 +213,10 @@ pub struct Assistant {
     pub update_checking: bool,
     /// The last check's outcome, for the settings.
     pub update_status: Option<String>,
+    /// The automatic updates look stopped (no build in a week, `update::stale`): shown in the
+    /// settings and, until dismissed for this session, as a notice over the editor.
+    pub update_stale: Option<String>,
+    pub update_stale_dismissed: bool,
     /// An install in progress.
     pub installing: Option<Installing>,
     /// Why the last install failed, shown in the notice.
@@ -375,7 +379,7 @@ fn sized_icon_button(ui: &mut Ui, icon: Icon, hint: &str, palette: &Palette, sid
     }
     let color = if enabled { palette.text } else { palette.weak.gamma_multiply(0.6) };
     paint_icon(ui.painter(), icon, rect.shrink(side * 0.275), color);
-    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, enabled, hint));
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, hint));
     response.on_hover_text(hint)
 }
 
@@ -481,7 +485,7 @@ fn file_chip(ui: &mut Ui, chip: &Chip, palette: &Palette, removable: bool) -> bo
     let below = top + name.size().y + 1.0;
     painter.galley(pos2(x, top), name, palette.text);
     painter.galley(pos2(x, below), detail, palette.weak);
-    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, &chip.name));
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, &chip.name));
     if !removable {
         return false;
     }
@@ -491,7 +495,7 @@ fn file_chip(ui: &mut Ui, chip: &Chip, palette: &Palette, removable: bool) -> bo
         ui.painter().circle_filled(close.center(), 15.0, palette.border.gamma_multiply(0.5));
     }
     paint_icon(ui.painter(), Icon::Close, close.shrink(9.0), palette.text);
-    button.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, "Quitar el archivo"));
+    button.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, "Quitar el archivo"));
     button.on_hover_text("Quitar el archivo").clicked()
 }
 
@@ -540,10 +544,20 @@ impl Assistant {
         self.settings.updates && !self.update_checking && now.saturating_sub(self.settings.update_checked) >= update::EVERY_SECS
     }
 
+    /// Help › Check for Updates: show the settings' Actualizaciones section and check now.
+    pub fn request_update_check(&mut self) {
+        self.open = true;
+        self.view = View::Settings;
+        self.actions.push(Action::CheckUpdate);
+    }
+
     /// The host's check finished: `Ok(None)` means no newer build is published.
-    pub fn update_result(&mut self, result: Result<Option<Release>, String>) {
+    pub fn update_result(&mut self, result: Result<update::Checked, String>) {
         self.update_checking = false;
-        match result {
+        if let Ok(checked) = &result {
+            self.update_stale = checked.stale.clone();
+        }
+        match result.map(|checked| checked.release) {
             Ok(Some(release)) => {
                 self.update_status = Some(format!("Hay una versión nueva: {} (compilación {}).", release.version, release.build));
                 self.update = Some(release);
@@ -558,7 +572,10 @@ impl Assistant {
 
     /// The notice for a new build, over the editor (drawn whether or not the panel is open).
     pub fn update_notice(&mut self, ctx: &Context, brand: &Branding) {
-        let Some(release) = &self.update else { return };
+        let Some(release) = &self.update else {
+            self.stale_notice(ctx);
+            return;
+        };
         if release.build == self.settings.update_skipped && self.installing.is_none() && self.install_error.is_none() {
             return;
         }
@@ -568,7 +585,7 @@ impl Assistant {
         let lift = if desktop { 48.0 } else { 128.0 };
         let name = if desktop { format!("{} IA", brand.name) } else { brand.name.to_owned() };
         let mut chosen = None;
-        egui::Area::new(egui::Id::new("assistant_update")).order(egui::Order::Foreground).anchor(Align2::LEFT_BOTTOM, vec2(16.0, -lift)).show(
+        egui::Area::new(egui::Id::unique("assistant_update")).order(egui::Order::Foreground).anchor(Align2::LEFT_BOTTOM, vec2(16.0, -lift)).show(
             ctx,
             |ui| {
                 own_fonts(ui);
@@ -667,6 +684,41 @@ impl Assistant {
             },
         );
         self.actions.extend(chosen);
+    }
+
+    /// The automatic updates stopped: say so over the editor, so a stuck merge is never silent.
+    fn stale_notice(&mut self, ctx: &Context) {
+        let Some(warning) = self.update_stale.clone() else { return };
+        if self.update_stale_dismissed {
+            return;
+        }
+        let lift = if self.host == Host::Desktop { 48.0 } else { 128.0 };
+        let width = (ctx.content_rect().width() - 32.0).clamp(200.0, 380.0);
+        let mut dismissed = false;
+        egui::Area::new(egui::Id::unique("assistant_update_stale"))
+            .order(egui::Order::Foreground)
+            .anchor(Align2::LEFT_BOTTOM, vec2(16.0, -lift))
+            .show(ctx, |ui| {
+                own_fonts(ui);
+                let palette = Palette::of(ui);
+                Frame::new()
+                    .fill(palette.bg)
+                    .stroke(Stroke::new(1.5, palette.error))
+                    .corner_radius(14)
+                    .inner_margin(Margin::same(14))
+                    .shadow(egui::Shadow { offset: [0, 3], blur: 14, spread: 0, color: Color32::from_black_alpha(50) })
+                    .show(ui, |ui| {
+                        ui.set_width(width - 28.0);
+                        ui.label(RichText::new("Las actualizaciones se detuvieron").strong().size(15.5).color(palette.strong));
+                        ui.add_space(4.0);
+                        ui.add(egui::Label::new(RichText::new(warning).color(palette.text)).wrap());
+                        ui.add_space(10.0);
+                        if ui.add(egui::Button::new("Entendido").corner_radius(10).min_size(vec2(110.0, 36.0))).clicked() {
+                            dismissed = true;
+                        }
+                    });
+            });
+        self.update_stale_dismissed |= dismissed;
     }
 
     /// The host's install failed (or the user cancelled it): the notice offers it again.
@@ -778,7 +830,7 @@ impl Assistant {
         ui.painter().rect(rect, CornerRadius::same(19), fill, Stroke::new(1.0, palette.border), egui::StrokeKind::Inside);
         ui.painter().galley(pos2(rect.min.x + 15.0, rect.center().y - galley.size().y / 2.0), galley, palette.text);
         paint_icon(ui.painter(), Icon::Chevron, Rect::from_center_size(pos2(rect.max.x - 19.0, rect.center().y), Vec2::splat(16.0)), palette.weak);
-        response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::ComboBox, true, "Modelo"));
+        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ComboBox, true, "Modelo"));
         egui::Popup::menu(&response).show(|ui| {
             own_fonts(ui);
             ui.set_min_width(300.0);
@@ -851,7 +903,7 @@ impl Assistant {
             }
             section(ui, "Acceso a la IA");
             let before = self.settings.ai;
-            egui::ComboBox::from_id_salt("ai_access").width(ui.available_width()).selected_text(if self.settings.ai { "Activado" } else { "Desactivado" }).show_ui(ui, |ui| {
+            craft_ui::ComboBox::from_id_salt("ai_access").width(ui.available_width()).selected_text(if self.settings.ai { "Activado" } else { "Desactivado" }).show_ui(ui, |ui| {
                 ui.selectable_value(&mut self.settings.ai, true, "Activado");
                 ui.selectable_value(&mut self.settings.ai, false, "Desactivado");
             });
@@ -930,7 +982,7 @@ impl Assistant {
 
             section(ui, "Modelo y razonamiento");
             let model = self.model();
-            egui::ComboBox::from_id_salt("assistant_model").width(ui.available_width()).selected_text(protocol::label_of(&model)).show_ui(ui, |ui| {
+            craft_ui::ComboBox::from_id_salt("assistant_model").width(ui.available_width()).selected_text(protocol::label_of(&model)).show_ui(ui, |ui| {
                 for m in MODELS {
                     if ui.selectable_label(m.id == model, format!("{} — {}", m.label, m.hint)).clicked() {
                         self.settings.model = m.id.into();
@@ -996,7 +1048,7 @@ impl Assistant {
         ui.label(RichText::new("Actualizaciones").strong().size(15.0).color(palette.strong));
         ui.add_space(6.0);
         let before = self.settings.updates;
-        egui::ComboBox::from_id_salt("updates")
+        craft_ui::ComboBox::from_id_salt("updates")
             .width(ui.available_width())
             .selected_text(if self.settings.updates { "Avisar de versiones nuevas" } else { "No buscar versiones nuevas" })
             .show_ui(ui, |ui| {
@@ -1024,6 +1076,10 @@ impl Assistant {
         if let Some(status) = &self.update_status {
             ui.add_space(4.0);
             ui.add(egui::Label::new(RichText::new(status).color(palette.text)).wrap());
+        }
+        if let Some(stale) = &self.update_stale {
+            ui.add_space(4.0);
+            ui.add(egui::Label::new(RichText::new(stale).color(palette.error)).wrap());
         }
         ui.add_space(6.0);
         ui.horizontal(|ui| {
@@ -1088,7 +1144,7 @@ impl Assistant {
     }
 
     fn composer(&mut self, ui: &mut Ui, palette: &Palette, brand: &Branding) {
-        let id = egui::Id::new(COMPOSER_ID);
+        let id = egui::Id::unique(COMPOSER_ID);
         // A hardware Enter sends; Shift+Enter and the on-screen keyboard's Enter add a line.
         let send_key = ui.memory(|m| m.has_focus(id))
             && ui.input_mut(|i| {
@@ -1155,7 +1211,7 @@ impl Assistant {
                             if running || ready { palette.on_accent } else { palette.card },
                         );
                         let hint = if running { "Detener" } else { "Enviar" };
-                        response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, hint));
+                        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, hint));
                         if response.clicked() {
                             if running {
                                 self.actions.push(Action::Stop);
@@ -1369,7 +1425,7 @@ impl Assistant {
         let palette = Palette::of(ui);
         let margin = Margin { left: 14, right: 10, top: 6, bottom: 12 };
         if screen.width() < 720.0 {
-            egui::Area::new(egui::Id::new("assistant_fullscreen")).order(egui::Order::Foreground).fixed_pos(screen.min).show(ui.ctx(), |ui| {
+            egui::Area::new(egui::Id::unique("assistant_fullscreen")).order(egui::Order::Foreground).fixed_pos(screen.min).show(ui.ctx(), |ui| {
                 Frame::new().fill(palette.bg).inner_margin(margin).show(ui, |ui| {
                     let size = screen.size() - vec2(f32::from(margin.left + margin.right), f32::from(margin.top + margin.bottom));
                     ui.set_min_size(size);
@@ -1397,18 +1453,21 @@ impl Assistant {
         }
         let screen = ctx.content_rect();
         let center = pos2(screen.max.x - 58.0, screen.max.y - 88.0);
-        egui::Area::new(egui::Id::new("assistant_launcher")).order(egui::Order::Foreground).fixed_pos(center - Vec2::splat(28.0)).show(ctx, |ui| {
-            let palette = Palette::of(ui);
-            let (rect, response) = ui.allocate_exact_size(Vec2::splat(56.0), Sense::click());
-            let painter = ui.painter();
-            painter.circle_filled(rect.center() + vec2(0.0, 2.5), 28.5, Color32::from_black_alpha(45));
-            painter.circle_filled(rect.center(), 28.0, if response.hovered() { palette.accent.gamma_multiply(0.92) } else { palette.accent });
-            paint_icon(painter, Icon::Sparkle, rect.shrink(16.0), palette.on_accent);
-            response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, "Asistente"));
-            if response.on_hover_text("Asistente").clicked() {
-                self.open = true;
-                self.view = View::Chat;
-            }
-        });
+        egui::Area::new(egui::Id::unique("assistant_launcher")).order(egui::Order::Foreground).fixed_pos(center - Vec2::splat(28.0)).show(
+            ctx,
+            |ui| {
+                let palette = Palette::of(ui);
+                let (rect, response) = ui.allocate_exact_size(Vec2::splat(56.0), Sense::click());
+                let painter = ui.painter();
+                painter.circle_filled(rect.center() + vec2(0.0, 2.5), 28.5, Color32::from_black_alpha(45));
+                painter.circle_filled(rect.center(), 28.0, if response.hovered() { palette.accent.gamma_multiply(0.92) } else { palette.accent });
+                paint_icon(painter, Icon::Sparkle, rect.shrink(16.0), palette.on_accent);
+                response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, "Asistente"));
+                if response.on_hover_text("Asistente").clicked() {
+                    self.open = true;
+                    self.view = View::Chat;
+                }
+            },
+        );
     }
 }

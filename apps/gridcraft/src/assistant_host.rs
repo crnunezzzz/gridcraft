@@ -37,22 +37,63 @@ impl Editor for Driven<'_> {
     }
 }
 
-pub struct AssistantHost(Desktop);
+struct AssistantHost(Desktop);
+
+thread_local! {
+    /// The assistant beside this process's main window (eframe runs every frame on one thread).
+    /// Held here rather than in `main.rs`'s `App`, so merging the original project's `main.rs`
+    /// only meets the four calls below.
+    static HOST: std::cell::RefCell<Option<AssistantHost>> = const { std::cell::RefCell::new(None) };
+}
+
+fn with(f: impl FnOnce(&mut AssistantHost)) {
+    HOST.with(|cell| {
+        if let Ok(mut host) = cell.try_borrow_mut() {
+            f(host.get_or_insert_with(|| AssistantHost::new(super::config_dir())));
+        }
+    });
+}
+
+/// Before the editor's frame logic.
+pub fn frame(ctx: &egui::Context, app: &mut SheetApp) {
+    with(|host| host.frame(ctx, app));
+}
+
+/// Before the editor's UI: the panel takes the right side of the main window.
+pub fn panel(ui: &mut egui::Ui, app: &mut SheetApp) {
+    with(|host| host.panel(ui, app));
+}
+
+/// After the editor's UI: the ribbon's Asistente tab and the panel's actions.
+pub fn finish(ctx: &egui::Context, app: &mut SheetApp) {
+    with(|host| host.finish(ctx, app));
+}
+
+/// Only an assistant that was started has anything to save.
+pub fn on_exit() {
+    HOST.with(|cell| {
+        if let Ok(mut host) = cell.try_borrow_mut()
+            && let Some(host) = host.as_mut()
+        {
+            host.on_exit();
+        }
+    });
+}
 
 impl AssistantHost {
     /// `dir`: the settings folder (assistant.json lives there).
-    pub fn new(dir: Option<std::path::PathBuf>) -> Self {
+    fn new(dir: Option<std::path::PathBuf>) -> Self {
         let dir = dir.unwrap_or_else(|| std::env::temp_dir().join("GridCraft"));
         Self(Desktop::new("GridCraft", &BRANDING, dir))
     }
 
     /// Before the editor's frame logic.
-    pub fn frame(&mut self, ctx: &egui::Context, app: &mut SheetApp) {
+    fn frame(&mut self, ctx: &egui::Context, app: &mut SheetApp) {
         self.0.frame(ctx, &mut Driven(app));
     }
 
     /// Before the editor's UI: the panel takes the right side of the window.
-    pub fn panel(&mut self, ui: &mut egui::Ui, app: &mut SheetApp) {
+    fn panel(&mut self, ui: &mut egui::Ui, app: &mut SheetApp) {
         if let Some(host) = &mut app.services.host_toolbar {
             host.assistant_open = self.0.assistant.open;
             host.busy = self.0.busy();
@@ -61,10 +102,12 @@ impl AssistantHost {
     }
 
     /// After the editor's UI: the ribbon's Asistente tab and the panel's actions.
-    pub fn finish(&mut self, ctx: &egui::Context, app: &mut SheetApp) {
+    fn finish(&mut self, ctx: &egui::Context, app: &mut SheetApp) {
         match app.services.host_toolbar.as_mut().and_then(|h| h.action.take()) {
             Some("assistant") => self.0.toggle(),
             Some("settings") => self.0.open_settings(),
+            // Help › Check for Updates in this build: this fork's releases, not the original's.
+            Some("check_update") => self.0.check_now(),
             _ => {}
         }
         self.0.finish(ctx, &mut Driven(app));
@@ -88,7 +131,7 @@ impl AssistantHost {
         }
     }
 
-    pub fn on_exit(&mut self) {
+    fn on_exit(&mut self) {
         self.0.on_exit();
     }
 }

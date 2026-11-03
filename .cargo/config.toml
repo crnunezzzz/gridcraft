@@ -1,2 +1,10 @@
 [alias]
 xtask = "run --package xtask --"
+
+# GridCraft IA (this fork): native Android development packages, optimized without whole-program
+# LTO. Kept here rather than in Cargo.toml so merging the original project never meets it.
+[profile.android]
+inherits = "release"
+opt-level = 1
+lto = false
+codegen-units = 64

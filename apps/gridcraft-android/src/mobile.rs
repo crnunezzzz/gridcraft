@@ -147,7 +147,7 @@ impl Mobile {
 
     fn update_reply(&mut self, event: &Value) {
         let result = match event["status"].as_u64() {
-            Some(200) => Ok(update::latest(&event["body"], update::repo(crate::RELEASES), update::Target::Android, update::build())),
+            Some(200) => Ok(update::check(&event["body"], update::repo(crate::RELEASES), update::Target::Android, update::build(), unix_now())),
             Some(status) => Err(update::failure(u16::try_from(status).ok())),
             None => Err(update::failure(None)),
         };
@@ -634,7 +634,8 @@ impl Mobile {
 
     /// A text field of the assistant has the keyboard: keep its keys from the editor.
     fn typing_in_panel(&self, ctx: &Context) -> bool {
-        self.assistant.open && ctx.memory(|m| m.focused()).is_some_and(|id| id == egui::Id::new(COMPOSER_ID) || self.assistant.view == View::Settings)
+        self.assistant.open
+            && ctx.memory(|m| m.focused()).is_some_and(|id| id == egui::Id::unique(COMPOSER_ID) || self.assistant.view == View::Settings)
     }
 }
 
@@ -710,6 +711,7 @@ impl eframe::App for Mobile {
                 self.assistant.open = true;
                 self.assistant.view = View::Settings;
             }
+            Some("check_update") => self.assistant.request_update_check(),
             Some("export") => self.status = self.editor.export(&self.platform).err().unwrap_or_else(|| "Elige dónde guardar la copia".into()),
             _ => {}
         }
