@@ -366,7 +366,10 @@ fn main() -> eframe::Result<()> {
     // manager showed a "no" cursor. Run through XWayland when it's there; GRIDCRAFT_WAYLAND=1
     // keeps the native Wayland backend.
     #[cfg(all(unix, not(target_os = "macos")))]
-    if std::env::var_os("DISPLAY").is_some_and(|d| !d.is_empty()) && std::env::var_os("GRIDCRAFT_WAYLAND").is_none() {
+    if std::env::var_os("DISPLAY").is_some_and(|d| !d.is_empty())
+        && std::env::var_os("GRIDCRAFT_WAYLAND").is_none()
+        && !assistant_host::native_wayland()
+    {
         options.event_loop_builder = Some(Box::new(|b| {
             use winit::platform::x11::EventLoopBuilderExtX11;
             b.with_x11();
