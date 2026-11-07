@@ -18,9 +18,12 @@ pub(super) fn about(ui: &mut egui::Ui, d: &mut Dialog) {
             ui.heading("GridCraft");
             ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
             ui.add_space(4.0);
-            ui.label("A clean-room, open-source, Rust-native spreadsheet. Part of ArtCraft.");
-            ui.hyperlink_to("getartcraft.com/apps/gridcraft", "https://getartcraft.com/apps/gridcraft");
-            ui.hyperlink_to("Join the ArtCraft Discord", "https://discord.gg/artcraft");
+            ui.label("A clean-room, open-source, Rust-native spreadsheet.");
+            // IA fork: a modified version says it is based on the original, never that it is one.
+            ui.label("Versión modificada con asistente de IA, basada en GridCraft del equipo de ArtCraft.");
+            ui.label("No es un producto oficial de ArtCraft.");
+            ui.hyperlink_to("Esta versión: github.com/crnunezzzz/gridcraft-asistente", "https://github.com/crnunezzzz/gridcraft-asistente");
+            ui.hyperlink_to("Original: github.com/storytold/gridcraft", "https://github.com/storytold/gridcraft");
         }
     }
 }
