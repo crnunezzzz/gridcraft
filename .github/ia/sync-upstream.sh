@@ -11,7 +11,9 @@
 # - The original's progress docs (ROADMAP.md, docs/*.md, …): the original's text. This fork's
 #   own notes live in files the original never has (docs/android.md, docs/asistente-*.md).
 # - ATTRIBUTION.md: the original's table, plus every row of ours it lacks (our Android icon).
-# - README.md: the original's, with our banner lines (before its first heading) put back on top.
+# - README.md: our section (down to the «fin de la sección del fork» marker) on top of the original's.
+# - docs/brand/: the ArtCraft logos stay removed, in the README too: their licence
+#   (docs/brand/LICENSE-brand.txt) makes a published modified version remove them.
 # Then it keeps the assistant's craft-ui on the same craft-libs rev as crates/ui-egui.
 set -euo pipefail
 
@@ -25,6 +27,9 @@ if git merge-base --is-ancestor "$ref" HEAD; then
     echo "Already up to date with $ref."
     exit 0
 fi
+
+# The last line of our section at the top of README.md.
+FORK_END='<!-- fin de la sección del fork -->'
 
 ours_only() { case "$1" in docs/android.md | docs/asistente-*.md | packaging/*/*-IA.txt | packaging/*/install-ia.*) return 0 ;; *) return 1 ;; esac; }
 
@@ -43,10 +48,17 @@ if ! git merge --no-edit --no-ff "$ref"; then
             README.md)
                 git show ":2:$f" > "$tmp/ours.md" 2> /dev/null || : > "$tmp/ours.md"
                 git checkout --theirs -- "$f"
-                banner=$(sed '/^#/,$d' "$tmp/ours.md")
-                if [ -n "$banner" ] && ! grep -qF -- "$(printf '%s\n' "$banner" | head -n1)" "$f"; then
-                    { printf '%s\n\n' "$banner"; cat "$f"; } > "$tmp/readme" && cat "$tmp/readme" > "$f"
+                if grep -qF -- "$FORK_END" "$tmp/ours.md"; then
+                    { sed "/$FORK_END/q" "$tmp/ours.md"; printf '\n'; cat "$f"; } > "$tmp/readme" && cat "$tmp/readme" > "$f"
+                else
+                    banner=$(sed '/^#/,$d' "$tmp/ours.md")
+                    if [ -n "$banner" ] && ! grep -qF -- "$(printf '%s\n' "$banner" | head -n1)" "$f"; then
+                        { printf '%s\n\n' "$banner"; cat "$f"; } > "$tmp/readme" && cat "$tmp/readme" > "$f"
+                    fi
                 fi ;;
+            docs/brand/*.svg | docs/brand/*.png)
+                git rm -q --ignore-unmatch -- "$f"
+                continue ;;
             *.md)
                 if ours_only "$f"; then git checkout --ours -- "$f"; else git checkout --theirs -- "$f"; fi ;;
             *) continue ;;
@@ -61,6 +73,14 @@ if ! git merge --no-edit --no-ff "$ref"; then
         exit 2
     fi
     git commit --no-edit
+fi
+
+# The ArtCraft logos stay out of this modified version, whatever the merge brought back.
+git rm -q --ignore-unmatch -- docs/brand/*.svg docs/brand/*.png 2> /dev/null || true
+perl -0pi -e 's{<p align="center">\s*<a href="https://getartcraft\.com/">.*?</a>.*?</p>\n\n?}{}gs' README.md
+git add -A README.md docs/brand 2> /dev/null || true
+if ! git diff --cached --quiet; then
+    git commit -m "IA sync: the ArtCraft logos stay out of the modified version"
 fi
 
 # The assistant's combo box comes from craft-ui: keep it on the editor's craft-libs rev, so one
