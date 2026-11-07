@@ -1,13 +1,45 @@
-> **Android para tablets:** [Descargar GridCraft APK](https://github.com/crnunezzzz/gridcraft-asistente/releases/latest/download/GridCraft-Android-arm64.apk) · [Instalación y uso](docs/android.md). Para pasar de android.3 a android.4, exporta tus documentos antes de desinstalar la versión anterior.
+> [!IMPORTANT]
+> **Versión modificada, no oficial.** Este repositorio es un fork de [storytold/gridcraft](https://github.com/storytold/gridcraft) mantenido por [@crnunezzzz](https://github.com/crnunezzzz). No es un producto de ArtCraft ni está respaldado por su equipo. Está basado en GridCraft del equipo de ArtCraft. Para la versión oficial, ve al [repositorio original](https://github.com/storytold/gridcraft).
 
-<p align="center">
-  <a href="https://getartcraft.com/">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/brand/artcraft-logo-white.svg">
-      <img alt="ArtCraft" src="docs/brand/artcraft-logo.svg" width="200">
-    </picture>
-  </a>
-</p>
+## GridCraft con asistente de IA
+
+GridCraft, el hoja de cálculo de código abierto al estilo de Excel, con un **asistente de IA** integrado y algunos ajustes propios. Se compila para **Linux x64 (Ubuntu), Windows x64 y Android (tablets ARM64)** y se mantiene al día con el original de forma automática.
+
+**Descargas** (última versión, en [Releases](https://github.com/crnunezzzz/gridcraft-asistente/releases/latest)):
+
+- **Linux:** `GridCraft-IA-<versión>-linux-x64.zip`. Descomprímelo y ejecuta `sh install-ia.sh`.
+- **Windows:** `GridCraft-IA-<versión>-windows-x64.zip`. Descomprímelo y ejecuta `install-ia.ps1` (clic derecho › Ejecutar con PowerShell). Se instala aparte del GridCraft oficial.
+- **Android:** `GridCraft-IA-<versión>-Android-arm64.apk` · [instalación y uso](docs/android.md). Para pasar de android.3 a android.4, exporta tus documentos antes de desinstalar la versión anterior.
+
+### Qué cambia frente al original
+
+**Añadido por este fork**
+
+- **Asistente de IA** (pestaña **Asistente**). Lee el libro abierto y lo edita con las mismas órdenes que la línea de comandos. Funciona con una clave de API de OpenAI o Anthropic, o con tu plan de ChatGPT (vía Codex) o de Claude (vía Claude Code). La IA solo puede usar las órdenes del editor: no tiene terminal, ni archivos, ni acceso a la red. Detalles: [docs/asistente-ia-windows.md](docs/asistente-ia-windows.md). Código: `apps/gridcraft-assistant`.
+- **App para Android** (`apps/gridcraft-android`). Es el mismo motor e interfaz, adaptados al tacto, con el asistente y claves cifradas en el Android Keystore. Ver [docs/android.md](docs/android.md).
+- **Actualizaciones del fork.** Al abrir, la app avisa «Hay una versión nueva» y la instala con **Actualizar**. También avisa cuando la versión oficial va por delante. Usa las versiones de este repositorio, no las oficiales, que no traen el asistente.
+- **Pin de la cinta**, como en Excel: fija o desfija la cinta; desfijada, se abre al pulsar una pestaña y se oculta al volver al libro.
+- **Barra de título en Ubuntu.** En sesiones Wayland (GNOME), la app usa Wayland nativo en vez de XWayland, así que no aparece una segunda barra con el nombre del archivo. Con la variable `GRIDCRAFT_X11=1` vuelves a la ventana X11.
+- **Español.** La interfaz en español (Vista › Idioma de la interfaz, o Archivo › Opciones) viene del proyecto original. El fork añade a sus compilaciones los datos de idioma de [`storytold/craft-i18n`](https://github.com/storytold/craft-i18n) (`CRAFT_I18N_DIR`) para la revisión ortográfica.
+
+**Cómo se mantiene al día** ([`.github/workflows/ia-windows.yml`](.github/workflows/ia-windows.yml))
+
+- Cada día fusiona la rama `release` del original. Los choques que se repiten los resuelve [`.github/ia/sync-upstream.sh`](.github/ia/sync-upstream.sh); los de código, Claude. Luego compila y prueba para Windows, Linux y Android, y publica una versión `ia-v<versión>-<n>`.
+- Si algo falla, no se publica nada y se avisa: la ejecución queda en rojo y llega un correo de GitHub.
+- Los cambios al código original son pequeños puntos de enganche (`host_toolbar`, `assistant_host`, …), para que las fusiones casi nunca choquen.
+
+**Quitado respecto al original**
+
+- Los logotipos de ArtCraft (`docs/brand/`). Su [licencia de marca](docs/brand/LICENSE-brand.txt) exige retirarlos de las versiones modificadas que se publican.
+- El actualizador oficial dentro de la app: instalaría encima el GridCraft oficial, sin asistente.
+
+**Licencia:** la misma del original, MIT OR Apache-2.0 (ver [NOTICE](NOTICE)). Los cambios de este fork se publican con esa misma licencia.
+
+---
+
+*Lo que sigue es el README del proyecto original, sin sus logotipos.*
+
+<!-- fin de la sección del fork -->
 
 <p align="center">
   <img src="assets/app-icon/hicolor/256x256/apps/ai.storyteller.gridcraft.png" width="128" height="128" alt="GridCraft icon: a spreadsheet page on a green tile">
@@ -352,11 +384,6 @@ part of this repository and GridCraft, under [`docs/brand/LICENSE-brand.txt`](do
 Forks and modified versions must remove them.
 
 <br>
-
-<p align="center">
-  <a href="https://getartcraft.com/"><img alt="ArtCraft" src="docs/brand/artcraft-mark.svg" width="28"></a><br>
-  <sub>Made by the <a href="https://getartcraft.com/">ArtCraft</a> team and community.</sub>
-</p>
 
 ## Android tablet port
 
