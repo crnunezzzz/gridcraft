@@ -102,6 +102,7 @@ pub fn show(app: &mut SheetApp, ui: &mut Ui) {
                             ui.painter().rect_filled(ul, 1.5, t.accent);
                         }
                         if resp.clicked() {
+                            crate::host_toolbar::tab_clicked(app, tab);
                             if tab == "Asistente" {
                                 if let Some(host) = &mut app.services.host_toolbar {
                                     host.action = Some("assistant");
@@ -176,6 +177,7 @@ pub fn show(app: &mut SheetApp, ui: &mut Ui) {
                 });
                 scroll_arrows(ui, &t, tab.as_str(), scroll);
             });
+            crate::host_toolbar::ribbon_pin(ui, app, card);
         });
 }
 
