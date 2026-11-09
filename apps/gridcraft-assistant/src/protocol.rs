@@ -78,6 +78,7 @@ pub const MODELS: &[Model] = &[
     Model { id: "claude-fable-5-1", label: "Claude Fable 5.1", hint: "Máxima capacidad", provider: Provider::Anthropic },
     Model { id: "gpt-6-sol", label: "GPT-6 Sol", hint: "Recomendado", provider: Provider::OpenAi },
     Model { id: "gpt-6.1-sol", label: "GPT-6.1 Sol", hint: "Muy capaz", provider: Provider::OpenAi },
+    Model { id: "gpt-6.1-terra", label: "GPT-6.1 Terra", hint: "Equilibrado y económico", provider: Provider::OpenAi },
     Model { id: "gpt-6-luna", label: "GPT-6 Luna", hint: "Rápido y económico", provider: Provider::OpenAi },
     Model { id: "gpt-6-astra", label: "GPT-6 Astra", hint: "Máxima capacidad", provider: Provider::OpenAi },
 ];
@@ -533,6 +534,13 @@ mod tests {
         assert!(validate_params(&json!({"options":[{"filePath":"/private/key"}]}), 0).is_err());
         assert!(validate_params(&json!({"anchor":{"story":"Body","path":[0,2,1],"off":3}}), 0).is_ok());
         assert!(!command_allowed("tools.macros"));
+    }
+
+    #[test]
+    fn gpt_6_1_terra_is_offered_through_openai() {
+        let m = model("gpt-6.1-terra").unwrap();
+        assert_eq!((m.label, m.provider), ("GPT-6.1 Terra", Provider::OpenAi));
+        assert_eq!(provider_of("gpt-6.1-terra"), Provider::OpenAi);
     }
 
     #[test]
