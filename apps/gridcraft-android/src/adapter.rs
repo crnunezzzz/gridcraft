@@ -86,11 +86,12 @@ impl Editor {
     pub fn ui(&mut self, ui: &mut Ui) {
         self.app.ui(ui);
     }
-    pub fn host_state(&mut self, open: bool, busy: bool, status: &str) {
+    pub fn host_state(&mut self, open: bool, busy: bool, status: &str, update: Option<String>) {
         if let Some(host) = &mut self.app.services.host_toolbar {
             host.assistant_open = open;
             host.busy = busy;
             host.status = status.into();
+            host.update = update;
         }
     }
     /// The interface size as a zoom over the system's display scale (1.0: as Android draws it).

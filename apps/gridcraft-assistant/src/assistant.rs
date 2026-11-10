@@ -554,6 +554,23 @@ impl Assistant {
         self.actions.push(Action::CheckUpdate);
     }
 
+    /// File › Actualizar: the published build that is newer than this one, as «0.17.0 (21)».
+    pub fn update_available(&self) -> Option<String> {
+        self.update.as_ref().map(|r| format!("{} ({})", r.version, r.build))
+    }
+
+    /// File › Actualizar: install the new build in one step, or look for one when none is known.
+    /// «Ahora no» on the notice does not stand in the way: the notice comes back, to show the
+    /// download and anything that goes wrong.
+    pub fn request_update(&mut self) {
+        if self.update.is_some() {
+            self.settings.update_skipped = 0;
+            self.actions.push(Action::InstallUpdate);
+        } else {
+            self.request_update_check();
+        }
+    }
+
     /// The host's check finished: `Ok(None)` means no newer build is published.
     pub fn update_result(&mut self, result: Result<update::Checked, String>) {
         self.update_checking = false;
@@ -1485,5 +1502,36 @@ impl Assistant {
                 }
             },
         );
+    }
+}
+
+#[cfg(test)]
+mod update_request_tests {
+    use super::*;
+
+    fn release() -> Release {
+        Release { build: 21, version: "0.17.0".into(), page: "https://example.invalid/p".into(), download: "https://example.invalid/d".into() }
+    }
+
+    /// File › Actualizar with a newer build known: one step, even after «Ahora no».
+    #[test]
+    fn a_known_build_is_installed_in_one_step() {
+        let mut assistant = Assistant::new(Settings::default());
+        assistant.update = Some(release());
+        assistant.settings.update_skipped = 21;
+        assert_eq!(assistant.update_available().as_deref(), Some("0.17.0 (21)"));
+        assistant.request_update();
+        assert_eq!(assistant.take_actions(), vec![Action::InstallUpdate]);
+        assert_eq!(assistant.settings.update_skipped, 0, "the notice comes back to show the download");
+    }
+
+    /// With no newer build known it looks for one, and says so in the settings.
+    #[test]
+    fn with_no_known_build_it_checks() {
+        let mut assistant = Assistant::new(Settings::default());
+        assert_eq!(assistant.update_available(), None);
+        assistant.request_update();
+        assert_eq!(assistant.take_actions(), vec![Action::CheckUpdate]);
+        assert!(assistant.open);
     }
 }

@@ -5,6 +5,8 @@ pub struct HostToolbar {
     pub assistant_open: bool,
     pub busy: bool,
     pub status: String,
+    /// The newer build the host found among its releases, as «0.17.0 (21)».
+    pub update: Option<String>,
 }
 
 /// Help › Check for Updates: true when the host checks its own releases instead (a build with
@@ -201,5 +203,110 @@ mod pin_tests {
         assert!(!h.state().ui.ribbon_collapsed);
         assert!(pin_label(&h).is_none());
         assert!(h.query_by_label_contains("+F1)").is_some());
+    }
+}
+
+/// File › Actualizar, a row of the File tab's side menu: «Actualizar a 0.17.0» when the host
+/// found a newer build among its releases (one click downloads it, installs it and reopens the
+/// app), «Buscar actualizaciones» otherwise. The automatic notice can be missed or dismissed;
+/// this row is always there. True when it was clicked (the caller closes the File tab, so the
+/// notice and its progress show). `row` is the row's size, `xs` where its icon and text start.
+pub fn backstage_update(
+    ui: &mut egui::Ui,
+    host: &mut Option<HostToolbar>,
+    spanish: bool,
+    row: egui::Vec2,
+    xs: (f32, f32),
+    font: egui::FontId,
+    ink: egui::Color32,
+) -> bool {
+    use egui::{Sense, Stroke, pos2, vec2};
+    let Some(host) = host else { return false };
+    let (label, tip) = update_texts(host.update.as_deref(), spanish);
+    let (rect, response) = ui.allocate_exact_size(row, Sense::click());
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
+    let painter = ui.painter();
+    if response.hovered() {
+        painter.rect_filled(rect, 0.0, ink.gamma_multiply(0.12));
+    }
+    // An arrow into a tray, drawn here: the editors' icon sets differ and none has this one.
+    let c = pos2(rect.left() + xs.0, rect.center().y);
+    let stroke = Stroke::new(1.5, ink);
+    painter.line_segment([c + vec2(0.0, -7.0), c + vec2(0.0, 3.0)], stroke);
+    painter.line_segment([c + vec2(-4.0, -1.0), c + vec2(0.0, 3.0)], stroke);
+    painter.line_segment([c + vec2(4.0, -1.0), c + vec2(0.0, 3.0)], stroke);
+    painter.line_segment([c + vec2(-7.0, 7.0), c + vec2(7.0, 7.0)], stroke);
+    if host.update.is_some() {
+        // A new build is waiting: the dot says so before the label is read.
+        painter.circle_filled(c + vec2(8.0, -7.0), 3.5, egui::Color32::from_rgb(255, 170, 60));
+    }
+    painter.text(pos2(rect.left() + xs.1, rect.center().y), egui::Align2::LEFT_CENTER, &label, font, ink);
+    let clicked = response.on_hover_text(tip).clicked();
+    if clicked {
+        host.action = Some("update");
+    }
+    clicked
+}
+
+/// The row's label and its tooltip. `update` is the newer build as «0.17.0 (21)».
+fn update_texts(update: Option<&str>, spanish: bool) -> (String, String) {
+    match (update, spanish) {
+        (Some(build), true) => {
+            let version = build.split(' ').next().unwrap_or(build);
+            (format!("Actualizar a {version}"), format!("Hay una versión nueva: {build}. Se descarga, se instala y la app se vuelve a abrir."))
+        }
+        (Some(build), false) => {
+            let version = build.split(' ').next().unwrap_or(build);
+            (format!("Update to {version}"), format!("A new version is available: {build}. It is downloaded and installed, and the app reopens."))
+        }
+        (None, true) => ("Buscar actualizaciones".into(), "Busca ahora una versión nueva. La app también lo hace sola, dos veces al día.".into()),
+        (None, false) => ("Check for Updates".into(), "Look for a new version now. The app also checks by itself, twice a day.".into()),
+    }
+}
+
+#[cfg(test)]
+mod update_row_tests {
+    use super::*;
+
+    #[test]
+    fn the_row_names_the_new_version_or_offers_a_check() {
+        assert_eq!(update_texts(Some("0.17.0 (21)"), true).0, "Actualizar a 0.17.0");
+        assert_eq!(update_texts(Some("0.17.0 (21)"), false).0, "Update to 0.17.0");
+        assert!(update_texts(Some("0.17.0 (21)"), true).1.contains("0.17.0 (21)"));
+        assert_eq!(update_texts(None, true).0, "Buscar actualizaciones");
+        assert_eq!(update_texts(None, false).0, "Check for Updates");
+    }
+
+    #[test]
+    fn a_click_asks_the_host_to_update_and_only_a_host_has_the_row() {
+        use egui_kittest::kittest::Queryable;
+        let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(240.0, 80.0)).build_ui_state(
+            |ui, state: &mut (Option<HostToolbar>, bool)| {
+                state.1 |= backstage_update(
+                    ui,
+                    &mut state.0,
+                    true,
+                    egui::vec2(200.0, 38.0),
+                    (31.0, 52.0),
+                    egui::FontId::proportional(14.0),
+                    egui::Color32::WHITE,
+                );
+            },
+            (Some(HostToolbar { update: Some("0.17.0 (21)".into()), ..Default::default() }), false),
+        );
+        harness.run();
+        harness.get_by_label("Actualizar a 0.17.0").click();
+        harness.run();
+        assert!(harness.state().1);
+        assert_eq!(harness.state().0.as_ref().and_then(|h| h.action), Some("update"));
+
+        let mut none = egui_kittest::Harness::builder().with_size(egui::vec2(240.0, 80.0)).build_ui_state(
+            |ui, state: &mut Option<HostToolbar>| {
+                backstage_update(ui, state, true, egui::vec2(200.0, 38.0), (31.0, 52.0), egui::FontId::proportional(14.0), egui::Color32::WHITE);
+            },
+            None,
+        );
+        none.run();
+        assert!(none.query_by_label("Buscar actualizaciones").is_none());
     }
 }

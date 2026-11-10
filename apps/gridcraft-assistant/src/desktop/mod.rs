@@ -233,6 +233,16 @@ impl Desktop {
         self.assistant.request_update_check();
     }
 
+    /// File › Actualizar: the published build that is newer than this one, as «0.17.0 (21)».
+    pub fn update_available(&self) -> Option<String> {
+        self.assistant.update_available()
+    }
+
+    /// File › Actualizar: install the new build in one step, or look for one when none is known.
+    pub fn update_now(&mut self) {
+        self.assistant.request_update();
+    }
+
     pub fn busy(&self) -> bool {
         self.run.is_some() || self.plan.is_some()
     }

@@ -105,6 +105,7 @@ impl AssistantHost {
         if let Some(host) = &mut app.services.host_toolbar {
             host.assistant_open = self.0.assistant.open;
             host.busy = self.0.busy();
+            host.update = self.0.update_available();
         }
         self.0.panel(ui);
     }
@@ -116,6 +117,8 @@ impl AssistantHost {
             Some("settings") => self.0.open_settings(),
             // Help › Check for Updates in this build: this fork's releases, not the original's.
             Some("check_update") => self.0.check_now(),
+            // File › Actualizar: one step when a new build is known, a check otherwise.
+            Some("update") => self.0.update_now(),
             _ => {}
         }
         self.0.finish(ctx, &mut Driven(app));

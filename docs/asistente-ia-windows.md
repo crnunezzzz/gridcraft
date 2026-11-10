@@ -1,6 +1,6 @@
 # GridCraft IA para Windows
 
-> Estado · 2026-10-26: asistente de escritorio en Windows x64 y Ubuntu / Linux x64 (también
+> Estado · 2026-11-10: asistente de escritorio en Windows x64 y Ubuntu / Linux x64 (también
 > compila en macOS), con aviso de versiones nuevas y «Actualizar» en un toque en Windows, Linux y
 > Android. Las pruebas automáticas pasan; falta probar Linux a mano en un PC con Ubuntu.
 
@@ -61,9 +61,15 @@ los sobrescribiría. Por eso GridCraft IA:
    versión nueva en *Releases*: el zip de Windows, el zip de Linux y la APK firmada de Android
    en la misma versión. La fusión ([`sync-upstream.sh`](../.github/ia/sync-upstream.sh))
    resuelve sola los choques que se repiten en cada fusión (`Cargo.lock`, los documentos del
-   original, `ATTRIBUTION.md`, `README.md`). Si el proyecto original cambia las mismas líneas de
+   original, `ATTRIBUTION.md`, `README.md`). El proyecto original reescribe su rama `release` en
+   cada versión, así que la fusión no usa la base que elegiría git, sino la última versión del
+   original que ya se fusionó (guardada en `.github/ia/upstream.rev`): así solo pueden chocar
+   las líneas que este fork cambió de verdad, y no el número de versión ni decenas de archivos
+   en cada versión nueva. Si el proyecto original cambia las mismas líneas de
    **código** que este fork, Claude los resuelve (si existe el secreto `CLAUDE_CODE_OAUTH_TOKEN`)
-   y su arreglo solo se sube si pasan las mismas pruebas. Nada que falle llega a `main`, y la
+   y su arreglo solo se sube si pasan las mismas pruebas. Lo mismo si la fusión no choca pero
+   el asistente deja de compilar porque el original renombró algo que usa: Claude adapta el
+   código del asistente. Nada que falle llega a `main`, y la
    última versión sigue disponible.
 3. **Toca lo mínimo del código original**, para que esas fusiones casi nunca choquen:
    - todo el asistente vive en `apps/gridcraft-assistant` (compartido con Android);
@@ -95,6 +101,11 @@ repositorio en GitHub. No se envía nada del usuario: es la misma lista que se v
 Si hay una compilación más nueva que la instalada, aparece el aviso «Hay una versión nueva» con
 **Actualizar** y **Ahora no** (no vuelve a avisar de esa compilación). En el asistente ›
 engranaje › **Actualizaciones** se puede desactivar el aviso o buscar al momento.
+
+**Archivo › Actualizar.** El menú de la pestaña Archivo (Inicio, Nuevo, Abrir, Información…)
+tiene siempre una fila para esto. Si la app ya encontró una versión nueva, dice «Actualizar a
+0.17.0» con un punto naranja, y un clic la descarga, la instala y vuelve a abrir la app, aunque
+antes se hubiera pulsado «Ahora no». Si no, dice «Buscar actualizaciones» y busca al momento.
 
 - **Windows:** «Actualizar» descarga el zip de la versión y saca de él solo `gridcraft.exe`,
   `gridcraft-cli.exe` y `LEEME-IA.txt`. Un pequeño script de PowerShell, oculto, espera a que la
