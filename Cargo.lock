@@ -2057,7 +2057,7 @@ dependencies = [
 
 [[package]]
 name = "gridcraft-android"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "android-activity",
  "eframe",
@@ -2076,7 +2076,7 @@ dependencies = [
 
 [[package]]
 name = "gridcraft-assistant"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "arboard",
  "craft-ui",
