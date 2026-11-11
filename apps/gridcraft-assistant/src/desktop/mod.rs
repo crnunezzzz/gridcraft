@@ -739,6 +739,7 @@ impl Desktop {
             }
             return;
         }
+        let deferred = protocol::deferred_results(&turn.deferred);
         let mut steps = Vec::new();
         let mut results = Vec::new();
         for call in turn.calls {
@@ -750,6 +751,7 @@ impl Desktop {
             results.push((call.id, content, !ok));
         }
         push_steps(&mut self.assistant.entries, steps);
+        results.extend(deferred);
         if let Some(thread) = &mut self.thread {
             thread.push_results(results);
         }
@@ -757,9 +759,7 @@ impl Desktop {
             if let Some(thread) = &mut self.thread {
                 thread.close_pending("Work limit reached.");
             }
-            self.assistant
-                .entries
-                .push(Entry::Notice("Se alcanzó el límite de trabajo de esta petición. Los cambios aplicados se pueden deshacer.".into()));
+            self.assistant.entries.push(Entry::Notice(crate::assistant::LIMIT_NOTICE.into()));
             return;
         }
         self.run = Some(run);
