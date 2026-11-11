@@ -27,7 +27,7 @@ use std::{
 };
 
 /// Model rounds per message (Claude Code's `--max-turns`).
-const MAX_TURNS: u32 = 40;
+const MAX_TURNS: u32 = 100;
 /// Attachments sent through a plan tool's stdin (bytes, base64 included).
 pub const MAX_PLAN_FILES: usize = 9 * 1024 * 1024;
 

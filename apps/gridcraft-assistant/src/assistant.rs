@@ -115,6 +115,11 @@ pub struct Step {
     pub detail: String,
 }
 
+/// Shown when a message used up its allowance of work; the panel offers «Continuar» under it.
+pub const LIMIT_NOTICE: &str = "Se alcanzó el límite de trabajo de esta petición. Los cambios aplicados se pueden deshacer.";
+/// What «Continuar» sends.
+pub const CONTINUE: &str = "Continúa con la tarea anterior desde donde quedó.";
+
 pub enum Entry {
     User { text: String, files: Vec<Chip> },
     Assistant(String),
@@ -1331,6 +1336,7 @@ impl Assistant {
         let composer_height = self.composer_height.max(112.0) + 12.0;
         let list_height = (ui.available_height() - composer_height).max(80.0);
         let mut retry = false;
+        let mut resume = false;
         let mut settings = false;
         let count = self.entries.len();
         egui::ScrollArea::vertical().id_salt("assistant_conversation").max_height(list_height).auto_shrink([false; 2]).stick_to_bottom(true).show(
@@ -1422,7 +1428,12 @@ impl Assistant {
                                 });
                         }
                         Entry::Notice(text) => {
-                            ui.vertical_centered(|ui| ui.add(egui::Label::new(RichText::new(text).small().color(palette.weak)).wrap()));
+                            ui.vertical_centered(|ui| {
+                                ui.add(egui::Label::new(RichText::new(text).small().color(palette.weak)).wrap());
+                                if index + 1 == count && text == LIMIT_NOTICE && ui.button("Continuar").clicked() {
+                                    resume = true;
+                                }
+                            });
                         }
                     }
                 }
@@ -1434,6 +1445,9 @@ impl Assistant {
         }
         if retry {
             self.actions.push(Action::Retry);
+        }
+        if resume {
+            self.actions.push(Action::Send(CONTINUE.into()));
         }
         ui.add_space(6.0);
         self.composer(ui, palette, brand);
