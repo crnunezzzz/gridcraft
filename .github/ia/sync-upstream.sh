@@ -94,9 +94,14 @@ trap 'drop_grafts; rm -rf "$tmp"' EXIT
 old=""
 if [ -f "$REV_FILE" ]; then
     old=$(tr -d '[:space:]' < "$REV_FILE")
-    # Only a commit that is really in our history can be the base.
-    if ! git cat-file -e "$old^{commit}" 2> /dev/null || ! git merge-base --is-ancestor "$old" HEAD; then
-        echo "::warning::$REV_FILE names $old, which is not in this history: merging with git's own base."
+    # The commit need not be an ancestor: a pull request merged with «Squash and merge» keeps
+    # the merged files but drops the original's commits from our history, and the recorded
+    # commit is still the right base. It only has to be here; ask the original for it if not.
+    if ! git cat-file -e "$old^{commit}" 2> /dev/null; then
+        git fetch --no-tags upstream "$old" 2> /dev/null || true
+    fi
+    if ! git cat-file -e "$old^{commit}" 2> /dev/null; then
+        echo "::warning::$REV_FILE names $old, which cannot be found: merging with git's own base."
         old=""
     fi
 fi
