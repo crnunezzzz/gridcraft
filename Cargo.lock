@@ -2029,7 +2029,7 @@ dependencies = [
 
 [[package]]
 name = "gridcraft"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "arboard",
  "chrono",
@@ -2042,6 +2042,7 @@ dependencies = [
  "gridcraft-assistant",
  "gridcraft-engine",
  "gridcraft-mcp",
+ "gridcraft-sandbox",
  "gridcraft-ui-egui",
  "image",
  "log",
@@ -2057,7 +2058,7 @@ dependencies = [
 
 [[package]]
 name = "gridcraft-android"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "android-activity",
  "eframe",
@@ -2076,7 +2077,7 @@ dependencies = [
 
 [[package]]
 name = "gridcraft-assistant"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "arboard",
  "craft-ui",
@@ -2100,7 +2101,7 @@ dependencies = [
 
 [[package]]
 name = "gridcraft-calc"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "gridcraft-core",
  "gridcraft-formula",
@@ -2112,7 +2113,7 @@ dependencies = [
 
 [[package]]
 name = "gridcraft-chart"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "gridcraft-calc",
  "gridcraft-core",
@@ -2123,10 +2124,11 @@ dependencies = [
 
 [[package]]
 name = "gridcraft-cli"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "gridcraft-engine",
  "gridcraft-mcp",
+ "gridcraft-sandbox",
  "log",
  "quick-xml 0.41.0",
  "serde_json",
@@ -2135,7 +2137,7 @@ dependencies = [
 
 [[package]]
 name = "gridcraft-core"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "chrono",
  "js-sys",
@@ -2146,7 +2148,7 @@ dependencies = [
 
 [[package]]
 name = "gridcraft-engine"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "gridcraft-calc",
  "gridcraft-chart",
@@ -2169,7 +2171,7 @@ dependencies = [
 
 [[package]]
 name = "gridcraft-formula"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "gridcraft-core",
  "serde",
@@ -2178,7 +2180,7 @@ dependencies = [
 
 [[package]]
 name = "gridcraft-functions"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "gridcraft-core",
  "regex",
@@ -2186,7 +2188,7 @@ dependencies = [
 
 [[package]]
 name = "gridcraft-math"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "ratex-font",
  "ratex-layout",
@@ -2196,7 +2198,7 @@ dependencies = [
 
 [[package]]
 name = "gridcraft-mcp"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "gridcraft-engine",
  "log",
@@ -2205,7 +2207,7 @@ dependencies = [
 
 [[package]]
 name = "gridcraft-model"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "gridcraft-core",
  "gridcraft-formula",
@@ -2218,18 +2220,29 @@ dependencies = [
 
 [[package]]
 name = "gridcraft-numfmt"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "gridcraft-core",
 ]
 
 [[package]]
 name = "gridcraft-pdf"
-version = "0.18.0"
+version = "0.19.0"
+
+[[package]]
+name = "gridcraft-sandbox"
+version = "0.19.0"
+dependencies = [
+ "landlock",
+ "libc",
+ "nix",
+ "seccompiler",
+ "thiserror 2.0.21",
+]
 
 [[package]]
 name = "gridcraft-ui-egui"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "craft-ui",
  "craft-update",
@@ -2248,6 +2261,7 @@ dependencies = [
  "skrifa",
  "sys-locale",
  "toml",
+ "unicode-bidi",
  "web-sys",
  "web-time",
  "zbus",
@@ -2255,7 +2269,7 @@ dependencies = [
 
 [[package]]
 name = "gridcraft-web"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "craft-web-api",
  "craft-web-host",
@@ -2274,7 +2288,7 @@ dependencies = [
 
 [[package]]
 name = "gridcraft-xlsx"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "aes",
  "gridcraft-core",
@@ -2935,6 +2949,17 @@ dependencies = [
  "euclid",
  "polycool",
  "smallvec",
+]
+
+[[package]]
+name = "landlock"
+version = "0.4.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4cca98e95f35b29d469dade6724c6f96cec9236640f745a0e99b0334ec320ab1"
+dependencies = [
+ "enumflags2",
+ "libc",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -4606,6 +4631,15 @@ dependencies = [
  "log",
  "smithay-client-toolkit 0.19.2",
  "tiny-skia",
+]
+
+[[package]]
+name = "seccompiler"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4ae55de56877481d112a559bbc12667635fdaf5e005712fd4e2b2fa50ffc884"
+dependencies = [
+ "libc",
 ]
 
 [[package]]
@@ -6836,7 +6870,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "gridcraft-engine",
  "serde_json",
