@@ -203,6 +203,19 @@ pub fn show(app: &mut SheetApp, ui: &mut Ui) {
                     out.close = true;
                 }
             }
+            // IA fork: File › Actualizar, from this build's own releases (`host_toolbar`).
+            let spanish = lang == crate::i18n::Language::Es;
+            if crate::host_toolbar::backstage_update(
+                ui,
+                &mut app.services.host_toolbar,
+                spanish,
+                vec2(NAV_W, 38.0),
+                (30.0, 50.0),
+                theme::ui_font(14.0),
+                nav_text,
+            ) {
+                out.close = true;
+            }
             // Bottom up: Account sits just above Options, as in Excel.
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
                 for page in [Page::Options, Page::Account] {

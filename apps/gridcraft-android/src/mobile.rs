@@ -694,7 +694,7 @@ impl eframe::App for Mobile {
     }
 
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
-        self.editor.host_state(self.assistant.open, self.run.is_some(), &self.status);
+        self.editor.host_state(self.assistant.open, self.run.is_some(), &self.status, self.assistant.update_available());
         if self.assistant.open {
             self.assistant.panel(ui, &crate::BRANDING);
         }
@@ -713,6 +713,7 @@ impl eframe::App for Mobile {
                 self.assistant.view = View::Settings;
             }
             Some("check_update") => self.assistant.request_update_check(),
+            Some("update") => self.assistant.request_update(),
             Some("export") => self.status = self.editor.export(&self.platform).err().unwrap_or_else(|| "Elige dónde guardar la copia".into()),
             _ => {}
         }
