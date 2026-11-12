@@ -15,7 +15,7 @@ serde_json = { workspace = true }
 egui = { workspace = true }
 # The combo box the editors use (egui's menu cannot grow back while open; clippy.toml). Same
 # rev as crates/ui-egui (the sync workflow keeps them together).
-craft-ui = { git = "https://github.com/storytold/craft-libs", rev = "1b34eba41e62138fc2438d2734523b302840b45d" }
+craft-ui = { git = "https://github.com/storytold/craft-libs", rev = "6e03f65bf45181db77ba6229716e6624db9eb25b" }
 zeroize = { version = "1", features = ["derive"] }
 image = { workspace = true }
 quick-xml = { workspace = true }
