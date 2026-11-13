@@ -1,4 +1,5 @@
-//! Opening and saving files: XLSX, legacy XLS import, XLSB and ODS data import, SYLK import, CSV/TSV, JSON (debug), HTML export.
+//! Opening and saving files: XLSX, legacy XLS import, XLSB, ODS/SXC and Lotus 1-2-3/Quattro Pro data import, SYLK import,
+//! CSV/TSV, JSON (debug), HTML export.
 
 use std::fmt::Write as _;
 
@@ -30,6 +31,8 @@ pub enum FileKind {
     Html,
     /// SYLK symbolic link text (import only).
     Sylk,
+    /// Lotus 1-2-3 Release 1–2, Symphony and Quattro Pro for DOS worksheets (data import only).
+    Lotus,
 }
 
 impl FileKind {
@@ -39,7 +42,11 @@ impl FileKind {
             "xlsx" | "xlsm" | "xltx" | "xltm" => FileKind::Xlsx,
             "xls" | "xlt" => FileKind::Xls,
             "xlsb" => FileKind::Xlsb,
-            "ods" => FileKind::Ods,
+            // StarOffice 6 / OpenOffice.org 1.x Calc (and its templates) is the format ODS grew from.
+            "ods" | "ots" | "sxc" | "stc" => FileKind::Ods,
+            // Lotus 1-2-3 (and Symphony) and Quattro Pro worksheets. Release 3+ and Quattro Pro for
+            // Windows files are recognised so that opening one says why it can't be read.
+            "wks" | "wk1" | "wk3" | "wk4" | "123" | "wrk" | "wr1" | "wq1" | "wq2" | "wb1" | "wb2" | "wb3" | "qpw" => FileKind::Lotus,
             "csv" => FileKind::Csv,
             "tsv" | "tab" | "txt" => FileKind::Tsv,
             "json" | "scjson" => FileKind::Json,
@@ -47,6 +54,72 @@ impl FileKind {
             "slk" => FileKind::Sylk,
             _ => return None,
         })
+    }
+
+    /// The kind a MIME type names, as a browser, mail client or web server labels a file
+    /// (`Content-Type`). Excel's binary format goes under many historical names
+    /// (`application/vnd.ms-excel`, `application/msexcel`, `application/x-dos_ms_excel`…); they
+    /// all mean `.xls`. Parameters (`; charset=…`) and case are ignored. `None` when the type is
+    /// unknown or says nothing about the format (`application/octet-stream`).
+    pub fn from_mime(mime: &str) -> Option<FileKind> {
+        let essence = mime.split(';').next().unwrap_or_default().trim().to_ascii_lowercase();
+        Some(match essence.as_str() {
+            "application/vnd.ms-excel"
+            | "application/excel"
+            | "application/msexcel"
+            | "application/x-excel"
+            | "application/x-msexcel"
+            | "application/x-ms-excel"
+            | "application/x-dos_ms_excel"
+            | "application/xls"
+            | "application/x-xls" => FileKind::Xls,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            | "application/vnd.openxmlformats-officedocument.spreadsheetml.template"
+            | "application/vnd.ms-excel.sheet.macroenabled.12"
+            | "application/vnd.ms-excel.template.macroenabled.12" => FileKind::Xlsx,
+            "application/vnd.ms-excel.sheet.binary.macroenabled.12" => FileKind::Xlsb,
+            "application/vnd.oasis.opendocument.spreadsheet"
+            | "application/vnd.oasis.opendocument.spreadsheet-template"
+            | "application/vnd.sun.xml.calc"
+            | "application/vnd.sun.xml.calc.template" => FileKind::Ods,
+            "application/vnd.lotus-1-2-3" | "application/x-lotus" | "application/lotus123" | "application/x-123" | "application/wk1" => {
+                FileKind::Lotus
+            }
+            "application/x-quattro-pro" | "application/x-quattropro" | "application/vnd.quattro-pro" | "application/quattro-pro" => FileKind::Lotus,
+            "text/csv" | "text/comma-separated-values" | "application/csv" => FileKind::Csv,
+            "text/tab-separated-values" => FileKind::Tsv,
+            "application/x-sylk" | "text/x-sylk" | "application/sylk" => FileKind::Sylk,
+            "text/html" => FileKind::Html,
+            "application/json" => FileKind::Json,
+            _ => return None,
+        })
+    }
+
+    /// The usual extension for files of this kind (`xls` for [`FileKind::Xls`]…).
+    pub fn extension(self) -> &'static str {
+        match self {
+            FileKind::Xlsx => "xlsx",
+            FileKind::Xls => "xls",
+            FileKind::Xlsb => "xlsb",
+            FileKind::Ods => "ods",
+            FileKind::Csv => "csv",
+            FileKind::Tsv => "tsv",
+            FileKind::Json => "json",
+            FileKind::Html => "html",
+            FileKind::Sylk => "slk",
+            FileKind::Lotus => "wk1",
+        }
+    }
+}
+
+/// The name to open bytes under when the caller knows their MIME type: `name` as it is when its
+/// extension already names a format GridCraft reads, otherwise `name` with the extension the MIME
+/// type stands for (a download called `report` served as `application/x-msexcel` opens as
+/// `report.xls`). Content still wins over the name where the bytes say what they are.
+pub fn name_for_mime(name: &str, mime: Option<&str>) -> String {
+    match mime.and_then(FileKind::from_mime) {
+        Some(kind) if FileKind::from_path(name).is_none() => format!("{name}.{}", kind.extension()),
+        _ => name.to_string(),
     }
 }
 
@@ -278,6 +351,17 @@ fn read_plain(name: &str, bytes: &[u8], csv_as_text: bool) -> Result<(Workbook, 
     if sniffed == gridcraft_xlsx::Format::Xls {
         let (wb, report) =
             gridcraft_xlsx::read_xls_with(bytes, XLSX_FUNCTIONS).map_err(|e| EngineError::Other(format!("We can't open '{name}': {e}")))?;
+        return Ok((wb, report.warnings));
+    }
+    // XML Spreadsheet 2003: what many web systems' "Export to Excel" writes, usually named `.xls`.
+    if sniffed == gridcraft_xlsx::Format::Xml2003 {
+        let (wb, report) = gridcraft_xlsx::read_xml2003(bytes, &|f, at| sylk::r1c1_formula_to_a1(f, at))
+            .map_err(|e| EngineError::Other(format!("We can't open '{name}': {e}")))?;
+        return Ok((wb, report.warnings));
+    }
+    if sniffed == gridcraft_xlsx::Format::Lotus || kind == Some(FileKind::Lotus) {
+        let (mut wb, report) = gridcraft_xlsx::read_lotus(bytes).map_err(|e| EngineError::Other(format!("We can't open '{name}': {e}")))?;
+        rename_first_sheet(&mut wb, name);
         return Ok((wb, report.warnings));
     }
     if sniffed == gridcraft_xlsx::Format::LegacyBinary {
@@ -527,6 +611,9 @@ pub fn save_bytes_as(wb: &Workbook, path: &str, kind: FileKind) -> Result<Vec<u8
         FileKind::Sylk => {
             Err(EngineError::Other("SYLK (.slk) is supported for import only. Save as .xlsx or another supported export format.".into()))
         }
+        FileKind::Lotus => Err(EngineError::Other(
+            "Lotus 1-2-3 and Quattro Pro worksheets are supported for data import only. Save as .xlsx or another supported export format.".into(),
+        )),
         // A workbook read from CSV keeps the separator it was read with (a `;` file stays `;`).
         FileKind::Csv => wb.sheet(sheet).map(|sh| csv(wb, sh, wb.csv_delimiter.unwrap_or(b','))).transpose().map(Option::unwrap_or_default),
         FileKind::Tsv => wb.sheet(sheet).map(|sh| csv(wb, sh, b'\t')).transpose().map(Option::unwrap_or_default),

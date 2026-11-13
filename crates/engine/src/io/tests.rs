@@ -810,3 +810,78 @@ fn reading_a_fifo_is_refused_without_blocking() {
     assert!(err.contains("only regular files"), "{err}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A web system's "Export to Excel" that writes XML Spreadsheet 2003 under an `.xls` name opens
+/// as its table, with its R1C1 formulas as A1 formulas, instead of as lines of XML.
+#[test]
+fn xml_spreadsheet_2003_named_xls_opens_as_a_workbook() {
+    let xml = r#"<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="b"><Font ss:Bold="1"/></Style></Styles><Worksheet ss:Name="Reporte"><Table><Row><Cell ss:StyleID="b"><Data ss:Type="String">Monto</Data></Cell></Row><Row><Cell><Data ss:Type="Number">10</Data></Cell></Row><Row><Cell><Data ss:Type="Number">32</Data></Cell></Row><Row><Cell ss:Formula="=SUM(R[-2]C:R[-1]C)"><Data ss:Type="Number">42</Data></Cell><Cell ss:Formula="=R1C1&amp;&quot;!&quot;"><Data ss:Type="String">Monto!</Data></Cell></Row></Table></Worksheet></Workbook>"#;
+    let (wb, warnings) = open_bytes("reporte.xls", xml.as_bytes()).unwrap();
+    assert!(warnings.is_empty(), "{warnings:?}");
+    let sh = wb.sheet(0).unwrap();
+    assert_eq!(sh.name, "Reporte");
+    let at = |a: &str| CellRef::parse(a).unwrap();
+    assert_eq!(sh.value(at("A1")), gridcraft_core::Value::Text("Monto".into()));
+    assert!(wb.styles.get(sh.style_id(at("A1"))).font.bold);
+    assert_eq!(sh.value(at("A4")), gridcraft_core::Value::Number(42.0), "the saved result shows until recalculation");
+    let formula = |a: &str| sh.cell(at(a)).and_then(|c| c.formula.as_ref()).map(|f| f.text.clone());
+    assert_eq!(formula("A4").as_deref(), Some("SUM(A2:A3)"));
+    assert_eq!(formula("B4").as_deref(), Some("$A$1&\"!\""));
+    // Opened as an import: Save must ask for a new .xlsx file.
+    assert!(save_bytes(&wb, "reporte.xls").is_err());
+}
+
+#[test]
+fn excel_mime_aliases_all_name_xls() {
+    for mime in [
+        "application/vnd.ms-excel",
+        "application/excel",
+        "application/msexcel",
+        "application/x-excel",
+        "application/x-msexcel",
+        "application/x-ms-excel",
+        "application/x-dos_ms_excel",
+        "application/xls",
+        "Application/X-MSExcel; charset=binary",
+    ] {
+        assert_eq!(FileKind::from_mime(mime), Some(FileKind::Xls), "{mime}");
+    }
+    assert_eq!(FileKind::from_mime("application/vnd.openxmlformats-officedocument.spreadsheetml.template"), Some(FileKind::Xlsx));
+    assert_eq!(FileKind::from_mime("application/vnd.ms-excel.template.macroEnabled.12"), Some(FileKind::Xlsx));
+    assert_eq!(FileKind::from_mime("application/vnd.sun.xml.calc"), Some(FileKind::Ods));
+    assert_eq!(FileKind::from_mime("application/vnd.lotus-1-2-3"), Some(FileKind::Lotus));
+    assert_eq!(FileKind::from_mime("application/x-quattro-pro"), Some(FileKind::Lotus));
+    assert_eq!(FileKind::from_mime("application/octet-stream"), None);
+    // A name without a known extension takes the MIME type's; a known one is kept.
+    assert_eq!(name_for_mime("descarga", Some("application/x-dos_ms_excel")), "descarga.xls");
+    assert_eq!(name_for_mime("libro.xlsx", Some("application/x-msexcel")), "libro.xlsx");
+    assert_eq!(name_for_mime("descarga", None), "descarga");
+    // Every extension the request names opens as some kind.
+    for ext in ["xls", "xlt", "xltx", "xltm", "sxc", "stc", "wks", "wk1", "wk3", "wk4", "123", "wq1", "wq2", "wb1", "wb2", "wb3", "qpw"] {
+        assert!(FileKind::from_path(&format!("book.{ext}")).is_some(), "{ext}");
+    }
+}
+
+#[test]
+fn lotus_worksheets_open_named_after_the_file_and_never_save_as_lotus() {
+    let rec = |kind: u16, body: &[u8]| -> Vec<u8> { [&kind.to_le_bytes()[..], &(body.len() as u16).to_le_bytes(), body].concat() };
+    let mut bytes = rec(0x0000, &0x0406u16.to_le_bytes());
+    bytes.extend(rec(0x000F, &[0xFF, 0, 0, 0, 0, b'\'', b'Q', b'1', 0]));
+    bytes.extend(rec(0x000E, &[[0xFFu8, 1, 0, 0, 0].as_slice(), &2.5f64.to_le_bytes()].concat()));
+    bytes.extend(rec(0x0001, &[]));
+    let (wb, warnings) = open_bytes("Budget 1989.wk1", &bytes).unwrap();
+    assert!(warnings.iter().any(|w| w.contains("Lotus 1-2-3")), "{warnings:?}");
+    let sh = wb.sheet(0).unwrap();
+    assert_eq!(sh.name, "Budget 1989");
+    assert_eq!(sh.value(CellRef::parse("A1").unwrap()), gridcraft_core::Value::Text("Q1".into()));
+    assert_eq!(sh.value(CellRef::parse("B1").unwrap()), gridcraft_core::Value::Number(2.5));
+    // Content wins over the name: the same bytes named .txt still open as a worksheet.
+    assert_eq!(
+        open_bytes("budget.txt", &bytes).unwrap().0.sheet(0).unwrap().value(CellRef::parse("B1").unwrap()),
+        gridcraft_core::Value::Number(2.5)
+    );
+    let err = save_bytes(&wb, "out.wk1").unwrap_err().to_string();
+    assert!(err.contains("import only"), "{err}");
+    // A file named .wk1 that isn't one says so, instead of opening as text.
+    assert!(open_bytes("fake.wk1", b"hello").is_err());
+}

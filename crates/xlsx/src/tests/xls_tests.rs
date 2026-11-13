@@ -752,6 +752,20 @@ fn xls_window2_right_to_left_sheet_opens_right_to_left() {
     assert_eq!(view(&one_sheet_with(&window2(0x0001 | 0x0002 | 0x0010))), (false, true, false, true, true));
 }
 
+/// Frozen panes (WINDOW2 fFrozen, then PANE) keep their rows and columns; a split that isn't
+/// frozen, or a short PANE, freezes nothing.
+#[test]
+fn xls_frozen_panes_are_read_from_pane() {
+    let window2 = |flags: u16| rec(0x023E, &u16s(&[flags, 0, 0, 64, 0, 0, 0, 0, 0]));
+    let pane = |x: u16, y: u16| rec(0x0041, &cat(&[&u16s(&[x, y, y, x]), &[3]]));
+    let freeze = |records: &[&[u8]]| read_xls(&one_sheet_with(&cat(records))).unwrap().0.sheets[0].freeze;
+    assert_eq!(freeze(&[&window2(0x0002 | 0x0008), &pane(0, 1)]), Some((1, 0)), "the header row");
+    assert_eq!(freeze(&[&window2(0x0008), &pane(2, 3)]), Some((3, 2)));
+    assert_eq!(freeze(&[&window2(0x0002), &pane(2, 3)]), None, "a split, not frozen");
+    assert_eq!(freeze(&[&window2(0x0008), &rec(0x0041, &[1])]), None, "a short PANE is ignored");
+    assert_eq!(freeze(&[&window2(0x0008), &pane(u16::MAX, 0)]), None, "past the grid");
+}
+
 #[test]
 fn xls_short_window2_is_ignored() {
     for payload in [&[][..], &[0x40][..], &[0x40, 0][..], &[0x40, 0, 0, 0, 0, 0, 0, 0, 0][..]] {

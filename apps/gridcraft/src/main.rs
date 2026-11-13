@@ -180,11 +180,20 @@ fn services() -> Services {
         })),
         pick_open: Some(Box::new(|| {
             rfd::FileDialog::new()
-                .add_filter("Spreadsheets", &["xlsx", "xlsm", "xls", "xlsb", "ods", "csv", "tsv", "txt", "slk", "json"])
+                .add_filter(
+                    "Spreadsheets",
+                    &[
+                        "xlsx", "xlsm", "xltx", "xltm", "xls", "xlt", "xlsb", "ods", "sxc", "stc", "wks", "wk1", "wq1", "wq2", "csv", "tsv", "txt",
+                        "slk", "json",
+                    ],
+                )
                 .add_filter("Excel Workbook", &["xlsx", "xlsm"])
-                .add_filter("Excel 97-2003 Workbook (import)", &["xls"])
+                .add_filter("Excel Template", &["xltx", "xltm"])
+                .add_filter("Excel 97-2003 Workbook (import)", &["xls", "xlt"])
                 .add_filter("Excel Binary Workbook (data import)", &["xlsb"])
                 .add_filter("OpenDocument Spreadsheet (data import)", &["ods"])
+                .add_filter("OpenOffice.org 1.x Spreadsheet (data import)", &["sxc", "stc"])
+                .add_filter("Lotus 1-2-3 / Quattro Pro (data import)", &["wks", "wk1", "wq1", "wq2"])
                 .add_filter("CSV", &["csv"])
                 .pick_file()
                 .and_then(|p| p.to_str().map(str::to_string))
