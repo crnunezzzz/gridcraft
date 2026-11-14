@@ -1,7 +1,12 @@
-//! Data-only OpenDocument Spreadsheet import. Formula caches become constants; styles and
-//! other ODF features are deliberately not translated. All fixtures are authored in Rust.
+//! Data-only OpenDocument Spreadsheet import, and of its predecessor, the StarOffice 6 /
+//! OpenOffice.org 1.x Calc format (`.sxc`, templates `.stc`). Formula caches become constants;
+//! styles and other ODF features are deliberately not translated. All fixtures are authored in Rust.
 //! Format reference: ODF 1.3, part 3, sections 6.1 and 9.1:
 //! <https://docs.oasis-open.org/office/OpenDocument/v1.3/os/part3-schema/OpenDocument-v1.3-os-part3-schema.html>.
+//! The 1.x format, which ODF was standardised from, has the same table structure with three
+//! differences handled by [`Dialect`]: its own namespaces (`http://openoffice.org/2000/…`), sheets
+//! directly under `office:body` (no `office:spreadsheet`), and the value attributes
+//! (`value-type`, `value`, `date-value`…) in the `table` namespace instead of `office`.
 
 use std::io::{Cursor, Read};
 use std::sync::Arc;
@@ -17,12 +22,48 @@ use quick_xml::name::ResolveResult;
 use crate::package::{MAX_ENTRIES, Package};
 use crate::{IoError, ReadReport};
 
-const MIME: &[u8] = b"application/vnd.oasis.opendocument.spreadsheet";
-const OFFICE: &[u8] = b"urn:oasis:names:tc:opendocument:xmlns:office:1.0";
-const TABLE: &[u8] = b"urn:oasis:names:tc:opendocument:xmlns:table:1.0";
-const TEXT: &[u8] = b"urn:oasis:names:tc:opendocument:xmlns:text:1.0";
 const CALC_EXT: &[u8] = b"urn:org:documentfoundation:names:experimental:calc:xmlns:calcext:1.0";
-const MANIFEST: &[u8] = b"urn:oasis:names:tc:opendocument:xmlns:manifest:1.0";
+
+/// What differs between OpenDocument and the OpenOffice.org 1.x format it grew from.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct Dialect {
+    /// The `mimetype` entries that identify the format (document and template).
+    mimes: &'static [&'static [u8]],
+    office: &'static [u8],
+    table: &'static [u8],
+    text: &'static [u8],
+    manifest: &'static [u8],
+    /// The namespace of `value-type`, `value`, `date-value`… on a cell.
+    values: &'static [u8],
+    /// Sheets sit in `office:spreadsheet` inside the body (ODF) rather than in the body itself (1.x).
+    spreadsheet_element: bool,
+    /// How warnings name the format.
+    name: &'static str,
+}
+
+/// OpenDocument Spreadsheet (`.ods`, `.ots`).
+pub(crate) const ODS: Dialect = Dialect {
+    mimes: &[b"application/vnd.oasis.opendocument.spreadsheet"],
+    office: b"urn:oasis:names:tc:opendocument:xmlns:office:1.0",
+    table: b"urn:oasis:names:tc:opendocument:xmlns:table:1.0",
+    text: b"urn:oasis:names:tc:opendocument:xmlns:text:1.0",
+    manifest: b"urn:oasis:names:tc:opendocument:xmlns:manifest:1.0",
+    values: b"urn:oasis:names:tc:opendocument:xmlns:office:1.0",
+    spreadsheet_element: true,
+    name: "ODS",
+};
+
+/// StarOffice 6 / OpenOffice.org 1.x Calc (`.sxc`, templates `.stc`).
+pub(crate) const SXC: Dialect = Dialect {
+    mimes: &[b"application/vnd.sun.xml.calc", b"application/vnd.sun.xml.calc.template"],
+    office: b"http://openoffice.org/2000/office",
+    table: b"http://openoffice.org/2000/table",
+    text: b"http://openoffice.org/2000/text",
+    manifest: b"http://openoffice.org/2001/manifest",
+    values: b"http://openoffice.org/2000/table",
+    spreadsheet_element: false,
+    name: "SXC (OpenOffice.org 1.x)",
+};
 const MAX_CELLS: u64 = 1_000_000;
 const MAX_MERGES: u64 = 100_000;
 const MAX_CELL_TEXT: usize = 1024 * 1024;
@@ -32,34 +73,45 @@ const MAX_SHEETS: usize = 1024;
 /// Reads only the small, exact mimetype entry, including when the ZIP uses compression.
 /// Looking at a filename or at arbitrary bytes inside the archive is not sufficient.
 pub(crate) fn has_mimetype(bytes: &[u8]) -> bool {
-    let Ok(mut zip) = zip::ZipArchive::new(Cursor::new(bytes)) else { return false };
+    dialect(bytes).is_some()
+}
+
+/// Which of the two formats the package's mimetype entry names, if either.
+pub(crate) fn dialect(bytes: &[u8]) -> Option<&'static Dialect> {
+    let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).ok()?;
     if zip.len() > MAX_ENTRIES {
-        return false;
+        return None;
     }
-    let Ok(mut file) = zip.by_name("mimetype") else { return false };
-    if file.size() != MIME.len() as u64 {
-        return false;
+    let mut file = zip.by_name("mimetype").ok()?;
+    // The longest mimetype either format uses; anything larger is neither.
+    const LONGEST: u64 = 64;
+    if file.size() > LONGEST {
+        return None;
     }
     let mut value = Vec::new();
-    (&mut file).take(MIME.len() as u64 + 1).read_to_end(&mut value).is_ok() && value == MIME
+    (&mut file).take(LONGEST + 1).read_to_end(&mut value).ok()?;
+    [&ODS, &SXC].into_iter().find(|d| d.mimes.contains(&value.as_slice()))
 }
 
 /// Imports ODS sheets, typed values, displayed text and merges. Cached formula results are
 /// imported as constants, so editing their inputs does not recalculate the original formula.
 /// Always inspect the returned warnings. Saving to ODS is not supported.
+///
+/// A StarOffice 6 / OpenOffice.org 1.x Calc file (`.sxc`, `.stc`), the format ODS was
+/// standardised from, is read the same way: its mimetype entry says which it is.
 pub fn read_ods(bytes: &[u8]) -> Result<(Workbook, ReadReport), IoError> {
     let mut package = Package::open(bytes)?;
-    if !has_mimetype(bytes) {
+    let Some(d) = dialect(bytes) else {
         return Err(IoError::Format("missing or invalid ODS mimetype".into()));
-    }
+    };
     if let Some(manifest) = package.read("META-INF/manifest.xml")? {
-        check_manifest(&manifest)?;
+        check_manifest(&manifest, d)?;
     }
-    let content = package.read("content.xml")?.ok_or_else(|| IoError::Format("ODS content.xml is missing".into()))?;
-    let mut import = Import::new();
+    let content = package.read("content.xml")?.ok_or_else(|| IoError::Format(format!("{} content.xml is missing", d.name)))?;
+    let mut import = Import::new(d);
     import.parse(&content)?;
     if import.wb.sheets.is_empty() {
-        return Err(IoError::Format("ODS contains no worksheets".into()));
+        return Err(IoError::Format(format!("{} contains no worksheets", d.name)));
     }
     Ok((import.wb, import.report))
 }
@@ -99,7 +151,7 @@ fn xml_error(e: impl std::fmt::Display) -> IoError {
     IoError::Xml(format!("ODS: {e}"))
 }
 
-fn check_manifest(bytes: &[u8]) -> Result<(), IoError> {
+fn check_manifest(bytes: &[u8], d: &Dialect) -> Result<(), IoError> {
     let mut reader = NsReader::from_reader(bytes);
     let mut depth = 0usize;
     let mut root_seen = false;
@@ -108,11 +160,11 @@ fn check_manifest(bytes: &[u8]) -> Result<(), IoError> {
         match &event {
             Event::Start(e) | Event::Empty(e) => {
                 let (ns, name) = reader.resolver_mut().resolve_element(e.name());
-                if is_ns(ns.clone(), MANIFEST) && name.as_ref() == b"encryption-data" {
+                if is_ns(ns.clone(), d.manifest) && name.as_ref() == b"encryption-data" {
                     return Err(IoError::Format("encrypted ODS files are not supported".into()));
                 }
                 if depth == 0 {
-                    if root_seen || !is_ns(ns, MANIFEST) || name.as_ref() != b"manifest" {
+                    if root_seen || !is_ns(ns, d.manifest) || name.as_ref() != b"manifest" {
                         return Err(xml_error("expected one manifest:manifest root"));
                     }
                     root_seen = true;
@@ -154,10 +206,10 @@ enum Tag {
     Other,
 }
 
-fn tag(reader: &mut NsReader<&[u8]>, e: &BytesStart<'_>) -> Tag {
+fn tag(reader: &mut NsReader<&[u8]>, e: &BytesStart<'_>, d: &Dialect) -> Tag {
     let (ns, name) = reader.resolver_mut().resolve_element(e.name());
     let local = name.as_ref();
-    if is_ns(ns.clone(), OFFICE) {
+    if is_ns(ns.clone(), d.office) {
         return match local {
             b"document-content" => Tag::Document,
             b"body" => Tag::Body,
@@ -165,7 +217,7 @@ fn tag(reader: &mut NsReader<&[u8]>, e: &BytesStart<'_>) -> Tag {
             _ => Tag::Other,
         };
     }
-    if is_ns(ns.clone(), TABLE) {
+    if is_ns(ns.clone(), d.table) {
         return match local {
             b"table" => Tag::Table,
             b"table-row-group" | b"table-header-rows" | b"table-rows" => Tag::Rows,
@@ -175,7 +227,7 @@ fn tag(reader: &mut NsReader<&[u8]>, e: &BytesStart<'_>) -> Tag {
             _ => Tag::Other,
         };
     }
-    if is_ns(ns, TEXT) {
+    if is_ns(ns, d.text) {
         return match local {
             b"p" | b"h" => Tag::Paragraph,
             b"span" | b"a" | b"meta" | b"meta-field" | b"ruby" | b"ruby-base" => Tag::Inline,
@@ -222,6 +274,7 @@ struct CellDraft {
     pending_space: bool,
 }
 struct Import {
+    d: &'static Dialect,
     wb: Workbook,
     report: ReadReport,
     stack: Vec<Tag>,
@@ -236,12 +289,26 @@ struct Import {
 }
 
 impl Import {
-    fn new() -> Self {
+    fn new(d: &'static Dialect) -> Self {
         let mut wb = Workbook::new();
         wb.sheets.clear();
         let mut report = ReadReport::default();
-        report.warn("ODS data-only import: formulas become their saved results and will not recalculate. Source formatting, charts, images and other features are not imported. Save a new .xlsx file; ODS saving is not supported.");
-        Self { wb, report, stack: vec![], sheet: None, row: None, cell: None, cells: 0, merges: 0, text: 0, formats: vec![], spreadsheet_seen: false }
+        let name = d.name;
+        report.warn(format!("{name} data-only import: formulas become their saved results and will not recalculate. Source formatting, charts, images and other features are not imported. Save a new .xlsx file; {name} saving is not supported."));
+        Self {
+            d,
+            wb,
+            report,
+            stack: vec![],
+            sheet: None,
+            row: None,
+            cell: None,
+            cells: 0,
+            merges: 0,
+            text: 0,
+            formats: vec![],
+            spreadsheet_seen: false,
+        }
     }
 
     fn parse(&mut self, bytes: &[u8]) -> Result<(), IoError> {
@@ -254,7 +321,7 @@ impl Import {
                         return Err(xml_error("XML nested too deeply"));
                     }
                     if self.stack.is_empty() {
-                        if root_seen || tag(&mut reader, &e) != Tag::Document {
+                        if root_seen || tag(&mut reader, &e, self.d) != Tag::Document {
                             return Err(xml_error("expected one office:document-content root"));
                         }
                         root_seen = true;
@@ -296,27 +363,34 @@ impl Import {
                 _ => {}
             }
         }
-        if !root_seen || !self.stack.is_empty() || !self.spreadsheet_seen {
+        if !root_seen || !self.stack.is_empty() || (self.d.spreadsheet_element && !self.spreadsheet_seen) {
             return Err(xml_error("incomplete ODS document"));
         }
         Ok(())
     }
 
     fn start(&mut self, reader: &mut NsReader<&[u8]>, e: &BytesStart<'_>) -> Result<(), IoError> {
-        let t = tag(reader, e);
+        let t = tag(reader, e, self.d);
         let depth = self.stack.len();
+        let (table, values, text) = (self.d.table, self.d.values, self.d.text);
+        // Where sheets sit: in `office:spreadsheet` (ODF), or in the body itself (1.x).
+        let in_sheets = if self.d.spreadsheet_element {
+            self.stack == [Tag::Document, Tag::Body, Tag::Spreadsheet]
+        } else {
+            self.stack == [Tag::Document, Tag::Body]
+        };
         match t {
-            Tag::Spreadsheet if self.stack == [Tag::Document, Tag::Body] => {
+            Tag::Spreadsheet if self.d.spreadsheet_element && self.stack == [Tag::Document, Tag::Body] => {
                 if self.spreadsheet_seen {
                     return Err(xml_error("multiple spreadsheets in one document"));
                 }
                 self.spreadsheet_seen = true;
             }
-            Tag::Table if self.stack == [Tag::Document, Tag::Body, Tag::Spreadsheet] => {
+            Tag::Table if in_sheets => {
                 if self.wb.sheets.len() >= MAX_SHEETS {
                     return Err(IoError::TooLarge("ODS contains more than 1024 sheets".into()));
                 }
-                let original = attr(reader, e, TABLE, b"name")?.unwrap_or_default();
+                let original = attr(reader, e, table, b"name")?.unwrap_or_default();
                 let mut name = crate::read::SheetNames::of(&self.wb).unique(original.trim_matches('\''), self.wb.sheets.len());
                 if self.wb.check_sheet_name(&name, None).is_err() {
                     name = self.wb.next_sheet_name();
@@ -328,13 +402,13 @@ impl Import {
             }
             Tag::Row if self.sheet.as_ref().is_some_and(|s| self.stack.get(s.depth + 1..).is_some_and(|p| p.iter().all(|t| *t == Tag::Rows))) => {
                 self.row =
-                    Some(RowDraft { depth, repeat: positive(attr(reader, e, TABLE, b"number-rows-repeated")?, 1, u32::MAX)?, col: 0, cells: vec![] });
+                    Some(RowDraft { depth, repeat: positive(attr(reader, e, table, b"number-rows-repeated")?, 1, u32::MAX)?, col: 0, cells: vec![] });
             }
             Tag::Cell | Tag::Covered if self.row.as_ref().is_some_and(|r| depth == r.depth + 1) => {
                 let kind = if attr(reader, e, CALC_EXT, b"value-type")?.as_deref() == Some("error") {
                     Some("error".into())
                 } else {
-                    attr(reader, e, OFFICE, b"value-type")?
+                    attr(reader, e, values, b"value-type")?
                 };
                 let key: &[u8] = match kind.as_deref() {
                     Some("boolean") => b"boolean-value",
@@ -345,13 +419,13 @@ impl Import {
                 };
                 self.cell = Some(CellDraft {
                     depth,
-                    repeat: positive(attr(reader, e, TABLE, b"number-columns-repeated")?, 1, u32::MAX)?,
-                    width: positive(attr(reader, e, TABLE, b"number-columns-spanned")?, 1, MAX_COLS)?,
-                    height: positive(attr(reader, e, TABLE, b"number-rows-spanned")?, 1, MAX_ROWS)?,
+                    repeat: positive(attr(reader, e, table, b"number-columns-repeated")?, 1, u32::MAX)?,
+                    width: positive(attr(reader, e, table, b"number-columns-spanned")?, 1, MAX_COLS)?,
+                    height: positive(attr(reader, e, table, b"number-rows-spanned")?, 1, MAX_ROWS)?,
                     covered: t == Tag::Covered,
                     kind,
-                    raw: attr(reader, e, OFFICE, key)?,
-                    formula: attr(reader, e, TABLE, b"formula")?.is_some(),
+                    raw: attr(reader, e, values, key)?,
+                    formula: attr(reader, e, table, b"formula")?.is_some(),
                     text: String::new(),
                     paragraph: None,
                     paragraphs: 0,
@@ -372,7 +446,7 @@ impl Import {
             }
             Tag::Space | Tag::Tab | Tag::Break if self.captures_text() => {
                 let count = if t == Tag::Space {
-                    let n = attr(reader, e, TEXT, b"c")?.map(|s| s.parse::<u32>()).transpose().map_err(xml_error)?.unwrap_or(1);
+                    let n = attr(reader, e, text, b"c")?.map(|s| s.parse::<u32>()).transpose().map_err(xml_error)?.unwrap_or(1);
                     if n as usize > MAX_CELL_TEXT {
                         return Err(IoError::TooLarge("ODS repeated spaces exceed 1 MiB".into()));
                     }
@@ -591,7 +665,7 @@ fn push_text(out: &mut String, text: &str) -> Result<(), IoError> {
 
 /// Support unzoned ISO calendar dates and times. A timezone, invalid date or out-of-range
 /// calendar year remains text; never silently discard an offset or roll an invalid date.
-fn parse_date(s: &str) -> Option<(f64, &'static str)> {
+pub(crate) fn parse_date(s: &str) -> Option<(f64, &'static str)> {
     let (date, time) = s.split_once('T').map_or((s, None), |(d, t)| (d, Some(t)));
     if date.len() != 10 || date.get(4..5)? != "-" || date.get(7..8)? != "-" {
         return None;

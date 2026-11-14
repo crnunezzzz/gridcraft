@@ -21,6 +21,7 @@ mod csv;
 mod drawing;
 mod feature_bags;
 mod fmla;
+mod lotus;
 mod ods;
 mod omml;
 mod package;
@@ -40,6 +41,7 @@ mod write;
 mod xls;
 mod xlsb;
 mod xml;
+mod xml2003;
 
 #[cfg(test)]
 mod tests;
@@ -49,11 +51,13 @@ use gridcraft_model::Workbook;
 
 pub use crypto::{DecryptError, check_encryption, decrypt};
 pub use csv::{MAX_CSV_BYTES, decode_text, read_csv, read_csv_with_report, write_csv, write_csv_limited};
+pub use lotus::read_lotus;
 pub use ods::read_ods;
 pub use package::MAX_PART;
 pub use passthrough::rebase_links;
 pub use xls::{read_xls, read_xls_with};
 pub use xlsb::read_xlsb;
+pub use xml2003::read_xml2003;
 
 /// Errors from reading or writing files.
 #[derive(Debug, thiserror::Error)]
@@ -255,10 +259,16 @@ pub enum Format {
     Xls,
     /// Another compound (CFB/OLE2) file: a legacy Office binary that isn't an Excel workbook.
     LegacyBinary,
+    /// A Lotus 1-2-3 Release 1–2 or Quattro Pro for DOS worksheet ([`read_lotus`]), or a later
+    /// Lotus-family file that reader recognises in order to refuse it with an explanation.
+    Lotus,
+    /// An XML Spreadsheet 2003 document ([`read_xml2003`]), often named `.xls` by web exports.
+    Xml2003,
     Unknown,
 }
 
-/// Guesses the format from content: ODS mimetype, XLSB package content types, other ZIP packages as XLSX, text as CSV.
+/// Guesses the format from content: ODS (or OpenOffice.org 1.x `.sxc`) mimetype, XLSB package
+/// content types, other ZIP packages as XLSX, Lotus-family records, text as CSV.
 pub fn sniff(bytes: &[u8]) -> Format {
     if bytes.starts_with(b"PK\x03\x04") || bytes.starts_with(b"PK\x05\x06") || bytes.starts_with(b"PK\x07\x08") {
         return if ods::has_mimetype(bytes) {
@@ -280,6 +290,12 @@ pub fn sniff(bytes: &[u8]) -> Format {
         } else {
             Format::LegacyBinary
         };
+    }
+    if lotus::flavor(bytes).is_some() {
+        return Format::Lotus;
+    }
+    if xml2003::is_xml2003(bytes) {
+        return Format::Xml2003;
     }
     if bytes.starts_with(&[0xFF, 0xFE]) || bytes.starts_with(&[0xFE, 0xFF]) || bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
         return Format::Csv;

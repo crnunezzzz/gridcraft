@@ -474,6 +474,8 @@ struct SheetState<'g> {
     dropped: usize,
     unsupported: Vec<&'static str>,
     calc: CalcSettings,
+    /// WINDOW2 said the panes are frozen: the PANE record after it says where.
+    frozen: bool,
 }
 
 impl SheetState<'_> {
@@ -634,6 +636,7 @@ fn worksheet<'g>(
         dropped: 0,
         unsupported: vec![],
         calc: CalcSettings::default(),
+        frozen: false,
     };
     let mut depth = 1usize;
     while let Some(rec) = recs.next_record()? {
@@ -867,6 +870,15 @@ fn sheet_record(rec: &Record<'_>, st: &mut SheetState<'_>, budget: &mut Budget, 
             st.sheet.show_headings = on(0x0004);
             st.sheet.show_zeros = on(0x0010);
             st.sheet.right_to_left = on(0x0040);
+            st.frozen = on(0x0008);
+        }
+        // PANE: with frozen panes, `x` columns stay on the left and `y` rows on top ([MS-XLS] 2.4.189).
+        // A damaged (short) PANE is ignored rather than failing the file.
+        0x0041 if st.frozen && c.remaining() >= 4 => {
+            let (x, y) = (u32::from(c.u16()?), u32::from(c.u16()?));
+            if (x > 0 || y > 0) && x < MAX_COLS && y < MAX_ROWS {
+                st.sheet.freeze = Some((y, x));
+            }
         }
         0x001C => report.warn("Cell comments in .xls files are not imported yet."),
         0x00EC => report.warn("Pictures, charts and shapes in .xls files are not imported yet."),
